@@ -7,11 +7,13 @@ from app.database import engine, Base
 # Import routers/endpoints
 from app.routers import readings, devices
 
-# Create tables
+# Create tables defined in app/models.py
 Base.metadata.create_all(bind=engine)
 
+# Create FastAPI app instance
 app = FastAPI(title=settings.api_title, version=settings.api_version)
 
+# Configure CORS middleware if allowed origins are specified
 if settings.allowed_origins:
     app.add_middleware(
     CORSMiddleware,
@@ -21,12 +23,14 @@ if settings.allowed_origins:
     allow_headers=["*"],
     )
 
+# Simple health check endpoint
 @app.get("/health", tags=["meta"])
+
 def root():
     return {"message": "Somnomat Webservice is running!"}
 def health():
     return {"status": "ok"}
 
-# Plug routers into main app
+# Register routers
 app.include_router(devices.router, prefix="/api/v1")
 app.include_router(readings.router, prefix="/api/v1")

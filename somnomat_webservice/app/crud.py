@@ -1,4 +1,5 @@
 # Data access layer that contains business logic functions -> Connects API to the database using SQLAlchemy
+# Session object used to interact with the database
 from sqlalchemy.orm import Session
 # SQL core queries 
 from sqlalchemy import select, func
