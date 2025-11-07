@@ -4,10 +4,10 @@ from datetime import datetime, timedelta, timezone
 BASE_URL = "http://127.0.0.1:8000/api/v1"
 
 def test_readings_endpoint():
-    """Test the readings endpoint with various filters."""
+    """Test the readings endpoint with health metrics."""
     
     print("=" * 60)
-    print("Testing Readings Endpoint")
+    print("Testing Readings Endpoint - Health Metrics")
     print("=" * 60)
     
     # Test 1: Get all readings (limited)
@@ -19,7 +19,12 @@ def test_readings_endpoint():
         print(f"   Total: {data['total']}")
         print(f"   Returned: {len(data['items'])} items")
         if data['items']:
-            print(f"   First item: {data['items'][0]}")
+            item = data['items'][0]
+            print(f"   First item:")
+            print(f"     - Heartrate: {item.get('heartrate')} bpm")
+            print(f"     - HRV: {item.get('hrv')} ms")
+            print(f"     - Time in bed: {item.get('time_in_bed')} h")
+            print(f"     - Total use time: {item.get('total_use_time')} h")
     else:
         print(f"   Error: {response.text}")
     
@@ -39,39 +44,8 @@ def test_readings_endpoint():
     else:
         print(f"   Error: {response.text}")
     
-    # Test 3: Filter by sensor
-    print("\n3. Getting temperature readings...")
-    response = requests.get(f"{BASE_URL}/readings/", params={
-        "sensor": "temperature",
-        "limit": 5
-    })
-    print(f"   Status: {response.status_code}")
-    if response.status_code == 200:
-        data = response.json()
-        print(f"   Total: {data['total']}")
-        print(f"   Returned: {len(data['items'])} items")
-        if data['items']:
-            print(f"   Sensors: {set(item['sensor'] for item in data['items'])}")
-    else:
-        print(f"   Error: {response.text}")
-    
-    # Test 4: Combined filters
-    print("\n4. Getting temperature readings for esp32-a1...")
-    response = requests.get(f"{BASE_URL}/readings/", params={
-        "device_id": "esp32-a1",
-        "sensor": "temperature",
-        "limit": 5
-    })
-    print(f"   Status: {response.status_code}")
-    if response.status_code == 200:
-        data = response.json()
-        print(f"   Total: {data['total']}")
-        print(f"   Returned: {len(data['items'])} items")
-    else:
-        print(f"   Error: {response.text}")
-    
-    # Test 5: Time range filter
-    print("\n5. Getting recent readings (last hour)...")
+    # Test 3: Time range filter
+    print("\n3. Getting recent readings (last hour)...")
     now = datetime.now(timezone.utc)
     one_hour_ago = now - timedelta(hours=1)
     response = requests.get(f"{BASE_URL}/readings/", params={
@@ -86,8 +60,27 @@ def test_readings_endpoint():
     else:
         print(f"   Error: {response.text}")
     
-    # Test 6: Pagination
-    print("\n6. Testing pagination...")
+    # Test 4: Create new reading
+    print("\n4. Creating new reading...")
+    new_reading = {
+        "device_id": "esp32-a1",
+        "heartrate": 72.5,
+        "hrv": 45.2,
+        "time_in_bed": 7.5,
+        "total_use_time": 8.2
+    }
+    response = requests.post(f"{BASE_URL}/readings/", json=new_reading)
+    print(f"   Status: {response.status_code}")
+    if response.status_code == 201:
+        data = response.json()
+        print(f"   Created reading ID: {data['id']}")
+        print(f"   Heartrate: {data['heartrate']} bpm")
+        print(f"   HRV: {data['hrv']} ms")
+    else:
+        print(f"   Error: {response.text}")
+    
+    # Test 5: Pagination
+    print("\n5. Testing pagination...")
     response1 = requests.get(f"{BASE_URL}/readings/", params={
         "device_id": "esp32-a1",
         "limit": 10,

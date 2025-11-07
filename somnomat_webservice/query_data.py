@@ -1,7 +1,7 @@
 import requests
 from datetime import datetime, timedelta
 
-BASE_URL = "http://127.0.0.1:8000/api/v1"  # Your local server
+BASE_URL = "http://127.0.0.1:8000/api/v1"
 
 def fetch_all_device_data(device_id: str):
     """Fetch all readings for a device with automatic pagination."""
@@ -33,11 +33,18 @@ def fetch_all_device_data(device_id: str):
 all_readings = fetch_all_device_data("esp32-a1")
 print(f"\nTotal readings: {len(all_readings)}")
 
-# Filter by sensor type
-temperature_readings = [r for r in all_readings if r['sensor'] == 'temperature']
-print(f"Temperature readings: {len(temperature_readings)}")
+# Calculate averages
+if all_readings:
+    avg_heartrate = sum(r['heartrate'] for r in all_readings if r['heartrate']) / len([r for r in all_readings if r['heartrate']])
+    avg_hrv = sum(r['hrv'] for r in all_readings if r['hrv']) / len([r for r in all_readings if r['hrv']])
+    avg_time_in_bed = sum(r['time_in_bed'] for r in all_readings if r['time_in_bed']) / len([r for r in all_readings if r['time_in_bed']])
+    
+    print(f"\nAverage metrics:")
+    print(f"  - Heartrate: {avg_heartrate:.1f} bpm")
+    print(f"  - HRV: {avg_hrv:.1f} ms")
+    print(f"  - Time in bed: {avg_time_in_bed:.1f} h")
 
-# Show latest 10
-print("\nLatest 10 readings:")
-for r in all_readings[:10]:
-    print(f"{r['timestamp']}: {r['sensor']} = {r['value']}")
+# Show latest 5
+print("\nLatest 5 readings:")
+for r in all_readings[:5]:
+    print(f"{r['timestamp']}: HR={r['heartrate']:.1f} bpm, HRV={r['hrv']:.1f} ms, Bed={r['time_in_bed']:.1f}h")

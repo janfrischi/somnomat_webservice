@@ -7,13 +7,14 @@ from app import schemas, crud, models
 
 # Create a router object with a prefix /readings
 router = APIRouter(
-    prefix="/readings", # every endpoint here will start with /readings
-    tags=["readings"]) # used for grouping in SwaggerUI 
+    prefix="/readings",
+    tags=["readings"]
+)
 
 # POST /api/v1/readings -> Add a new reading
 @router.post("/", response_model=schemas.ReadingOut, status_code=201)
 def ingest_reading(payload: schemas.ReadingCreate, db: Session = Depends(get_db)):
-    """Ingest one sensor reading. Create the device on the fly if missing."""
+    """Ingest one health metrics reading. Create the device on the fly if missing."""
     return crud.create_reading(db, payload)
 
 # GET /api/v1/readings -> Fetch readings
@@ -21,7 +22,6 @@ def ingest_reading(payload: schemas.ReadingCreate, db: Session = Depends(get_db)
 def get_readings(
     db: Session = Depends(get_db),
     device_id: str | None = Query(None, description="Public device_id string"),
-    sensor: str | None = None,
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
     since: datetime | None = Query(None, description="ISO-8601 UTC"),
@@ -30,7 +30,6 @@ def get_readings(
     total, items = crud.list_readings(
         db,
         device_id=device_id,
-        sensor=sensor,
         limit=limit,
         offset=offset,
         since=since,
@@ -48,8 +47,10 @@ def get_readings(
         formatted_items.append({
             "id": reading.id,
             "device_id": device.device_id if device else "unknown",
-            "sensor": reading.sensor,
-            "value": reading.value,
+            "heartrate": reading.heartrate,
+            "hrv": reading.hrv,
+            "time_in_bed": reading.time_in_bed,
+            "total_use_time": reading.total_use_time,
             "timestamp": reading.timestamp.isoformat()
         })
     
