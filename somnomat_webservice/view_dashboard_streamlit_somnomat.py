@@ -21,7 +21,7 @@ try:
     logo = Image.open(logo_path)
     
     # Display logo in sidebar
-    st.sidebar.image(logo, use_container_width=True)
+    st.sidebar.image(logo, width='stretch')  # ✅ Updated
     st.sidebar.divider()
 except FileNotFoundError:
     st.sidebar.warning("Logo not found")
@@ -278,7 +278,7 @@ if comparison_mode and compare_device and dashboard and compare_dashboard:
         xaxis_title='Metrics'
     )
     
-    st.plotly_chart(fig_comparison, use_container_width=True)
+    st.plotly_chart(fig_comparison, width='stretch')  # ✅ Updated
     
     st.caption("*Note: Avg Sleep and Daily Occupancy values are multiplied by 10 for visualization")
     
@@ -342,7 +342,7 @@ elif dashboard:
             }
         ))
         fig_gauge.update_layout(height=300)
-        st.plotly_chart(fig_gauge, use_container_width=True)
+        st.plotly_chart(fig_gauge, width='stretch')  # ✅ Updated
 
     with col2:
         # Consistency gauge
@@ -364,7 +364,7 @@ elif dashboard:
             }
         ))
         fig_consistency.update_layout(height=300)
-        st.plotly_chart(fig_consistency, use_container_width=True)
+        st.plotly_chart(fig_consistency, width='stretch')  # ✅ Updated
     
     st.divider()
     
@@ -415,7 +415,7 @@ if comparison_mode and compare_device:
                 height=300
             )
             fig.update_traces(marker=dict(size=2))
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')  # ✅ Updated
         else:
             st.warning("No data available")
     
@@ -443,7 +443,7 @@ if comparison_mode and compare_device:
                 height=300
             )
             fig.update_traces(marker=dict(size=2))
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')  # ✅ Updated
         else:
             st.warning("No data available")
     
@@ -477,7 +477,7 @@ if comparison_mode and compare_device:
                 labels={'date': 'Date', 'duration_hours': 'Hours', 'device': 'Device'},
                 height=400
             )
-            st.plotly_chart(fig_combined, use_container_width=True)
+            st.plotly_chart(fig_combined, width='stretch')  # ✅ Updated
 
 else:
     # Single device view (existing code)
@@ -508,7 +508,7 @@ else:
             height=400
         )
         fig.update_traces(marker=dict(size=3))
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')  # ✅ Updated
         
         # Process into sessions
         sessions = process_occupancy_into_sessions(occupancy_data)
@@ -532,7 +532,7 @@ else:
                 height=400
             )
             fig2.update_layout(showlegend=False)
-            st.plotly_chart(fig2, use_container_width=True)
+            st.plotly_chart(fig2, width='stretch')  # ✅ Updated
             
             # Sessions table
             st.markdown("#### Sleep Sessions Details")
@@ -540,7 +540,7 @@ else:
             display_df['session_start'] = display_df['session_start'].dt.strftime('%Y-%m-%d %H:%M')
             display_df['session_end'] = display_df['session_end'].dt.strftime('%Y-%m-%d %H:%M')
             display_df['duration_hours'] = display_df['duration_hours'].round(2)
-            st.dataframe(display_df, use_container_width=True)
+            st.dataframe(display_df, width='stretch')  # ✅ Updated
             
             # Bedtime distribution
             sessions_df['bedtime_hour'] = sessions_df['session_start'].dt.hour + sessions_df['session_start'].dt.minute / 60
@@ -552,7 +552,7 @@ else:
                 labels={'bedtime_hour': 'Hour of Day'},
                 height=300
             )
-            st.plotly_chart(fig3, use_container_width=True)
+            st.plotly_chart(fig3, width='stretch')  # ✅ Updated
             
             # Trend Analysis
             st.divider()
@@ -578,7 +578,7 @@ else:
                 yaxis_title='Hours',
                 height=300
             )
-            st.plotly_chart(fig_trend, use_container_width=True)
+            st.plotly_chart(fig_trend, width='stretch')  # ✅ Updated
             
             # Sleep Quality Distribution
             st.markdown("### 🎯 Sleep Quality Distribution")
@@ -601,7 +601,7 @@ else:
                                  showarrow=False)],
                 height=400
             )
-            st.plotly_chart(fig_donut, use_container_width=True)
+            st.plotly_chart(fig_donut, width='stretch')  # ✅ Updated
         
             st.markdown("### 🗓️ Weekly Sleep Pattern Heatmap")
 
@@ -634,7 +634,7 @@ else:
                 yaxis_title='Day of Week',
                 height=400
             )
-            st.plotly_chart(fig_heatmap, use_container_width=True)
+            st.plotly_chart(fig_heatmap, width='stretch')  # ✅ Updated
             
             # Sleep Schedule Consistency
             st.markdown("### 🌅 Sleep Schedule Consistency")
@@ -679,7 +679,7 @@ else:
                 yaxis=dict(range=[4, 10])
             )
 
-            st.plotly_chart(fig_schedule, use_container_width=True)
+            st.plotly_chart(fig_schedule, width='stretch')  # ✅ Updated
             
             st.markdown("### 🕐 24-Hour Sleep Pattern (Polar View)")
 
@@ -710,7 +710,7 @@ else:
                 height=500
             )
 
-            st.plotly_chart(fig_polar, use_container_width=True)
+            st.plotly_chart(fig_polar, width='stretch')  # ✅ Updated
             
         else:
             st.warning("No sleep sessions found in the occupancy data.")
@@ -728,7 +728,7 @@ st.sidebar.subheader("🔄 Refresh")
 
 col1, col2 = st.sidebar.columns(2)
 with col1:
-    if st.button("🔄 Refresh Now", use_container_width=True):
+    if st.button("🔄 Refresh Now", width='stretch'):  # ✅ Updated
         st.rerun()
 
 with col2:
@@ -754,7 +754,7 @@ if dashboard and occupancy_data:
         data=dashboard_json,
         file_name=f"dashboard_{device_id}_{datetime.now().strftime('%Y%m%d')}.json",
         mime="application/json",
-        use_container_width=True
+        width='stretch'  # ✅ Updated
     )
     
     # Export raw data as CSV
@@ -765,7 +765,7 @@ if dashboard and occupancy_data:
         data=csv,
         file_name=f"occupancy_{device_id}_{datetime.now().strftime('%Y%m%d')}.csv",
         mime="text/csv",
-        use_container_width=True
+        width='stretch'  # ✅ Updated
     )
 
 st.sidebar.divider()

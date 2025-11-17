@@ -244,6 +244,7 @@ def calculate_and_update_dashboard(device_id: int, days_back: int = 30) -> Dict[
     end_date = datetime.now(timezone.utc)
     start_date = end_date - timedelta(days=days_back)
     
+    # Fetch occupancy readings
     occupancy_readings = get_raw_occupancy_by_device(
         device_id=device_id,
         limit=10000  # Get enough data for analysis
@@ -262,7 +263,7 @@ def calculate_and_update_dashboard(device_id: int, days_back: int = 30) -> Dict[
     
     print(f"✅ Found {len(filtered_readings)} occupancy readings in the last {days_back} days\n")
     
-    # Process into sessions
+    # Process raw occupancy data into sessions
     print("🔄 Processing occupancy data into sleep sessions...")
     sessions = process_occupancy_into_sessions(filtered_readings)
     
@@ -273,7 +274,7 @@ def calculate_and_update_dashboard(device_id: int, days_back: int = 30) -> Dict[
     
     print(f"✅ Detected {len(sessions)} sleep sessions\n")
     
-    # Calculate metrics
+    # -------- Calculate metrics --------
     print("📈 Calculating metrics...")
     
     # Count interruptions
@@ -285,6 +286,7 @@ def calculate_and_update_dashboard(device_id: int, days_back: int = 30) -> Dict[
     # Count unique nights
     unique_nights = len(set(s['session_start'].date() for s in sessions))
     
+    # Create metrics dictionary
     metrics = {
         'sleep_consistency': calculate_sleep_consistency(sessions),
         'bedtime_consistency': calculate_bedtime_consistency(sessions),
@@ -345,5 +347,5 @@ if __name__ == "__main__":
     # Get device ID from command line or use default
     device_id = int(sys.argv[1]) if len(sys.argv) > 1 else 9  # Default to test device
     days = int(sys.argv[2]) if len(sys.argv) > 2 else 30
-    
+    # Calculate the dashboard and write the data to Supabase
     calculate_and_update_dashboard(device_id, days_back=days)

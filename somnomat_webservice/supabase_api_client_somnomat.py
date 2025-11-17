@@ -25,6 +25,7 @@ def create_device(
     hardware_version: Optional[str] = None
 ) -> Dict[str, Any]:
     """Create a new device."""
+    # Define payload
     data = {
         "name": name,
         "boardtype": boardtype,
@@ -35,10 +36,12 @@ def create_device(
     # Remove None values
     data = {k: v for k, v in data.items() if v is not None}
     
+    # Insert into supabase "Typical Supabase Client Usage"
     response = supabase.table("devices") \
         .insert(data) \
         .execute()
     
+    # Return the inserted row
     return response.data[0] if response.data else None
 
 
