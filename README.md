@@ -1,19 +1,19 @@
 # Somnomat Webservice
 
-A Python-based sleep monitoring backend using Supabase for data storage and analysis. This service calculates sleep metrics, generates personalized insights, and provides tools for analyzing sleep patterns.
+A Python-based sleep monitoring system with **secure authentication** and **real-time dashboard**. Uses Supabase for database, authentication, and row-level security.
 
 ## 🏗️ Architecture
 
 ```
-Python Analysis Scripts
+User Authentication (JWT)
          ↓
-  supabase_api_client.py (Python wrapper)
+Row-Level Security (RLS)
          ↓
-  Supabase REST API
+Python Dashboard (Streamlit)
          ↓
-  PostgreSQL Database
-    • sleep_sessions
-    • sleep_dashboard
+Supabase REST API
+         ↓
+PostgreSQL Database
 ```
 
 ---
@@ -33,138 +33,116 @@ pip install -r requirements.txt
 Create `.env` file:
 
 ```env
-SUPABASE_URL=https://xybqmwkxsriatdfvhpym.supabase.co
-SUPABASE_KEY=your-anon-key-here
+SUPABASE_URL_CALMEA=https://your-project.supabase.co
+SUPABASE_KEY_CALMEA=your-anon-key-here
 ```
 
-Get credentials from: **Supabase Dashboard** → **Project Settings** → **API**
-
-### 3. Create Test Data
+### 3. Create Account & First Device
 
 ```bash
-python seed_sleep_sessions.py
+# Sign up
+python auth_cli.py signup your@email.com YourPassword123 "Your Name"
+
+# Create device with 30 days of data
+python setup_device.py "Bedroom Sensor"
+
+# Launch dashboard
+streamlit run view_dashboard_streamlit_auth.py
+```
+
+Dashboard opens at: **http://localhost:8501**
+
+---
+
+## 📋 Essential Commands
+
+### **Authentication**
+
+```bash
+# Sign in
+python auth_cli.py signin your@email.com password
+
+# Check current user
+python auth_cli.py whoami
+
+# Sign out
+python auth_cli.py signout
+```
+
+### **Device Management**
+
+```bash
+# Create new device (with data)
+python setup_device.py "Device Name"
+
+# List your devices
+python auth_cli.py devices
+
+# Link existing device
+python auth_cli.py link <device_id>
+```
+
+### **Dashboard**
+
+```bash
+# Launch authenticated dashboard
+streamlit run view_dashboard_streamlit_auth.py
+
+# Stop: Press Ctrl+C
+```
+
+### **Data Management**
+
+```bash
+# Add more occupancy data
+python create_occupancy_data.py <device_id> <days>
+
+# Recalculate metrics
+python calculate_dashboard.py <device_id>
 ```
 
 ---
 
-## 📊 Main Features
-
-### 1. Calculate Dashboard Metrics
-
-Analyzes sleep sessions and generates:
-- Sleep consistency score (0-100)
-- Bedtime consistency score (0-100)
-- Bed usage percentage
-- Daily occupancy (hours/day)
-- Personalized AI suggestions
-
-**Usage:**
-```bash
-python calculate_dashboard.py esp32-a1
-```
-
-**Output:**
-```
-Calculated Metrics:
-  Sleep Consistency Score: 78.45/100
-  Bedtime Consistency Score: 85.23/100
-  Bed Use: 28.33%
-  Daily Occupancy: 6.8 hours/day
-  Total Interruptions: 75
-  Total Nights: 30
-  Average Sleep: 7.50 hours/night
-
-✅ Dashboard updated successfully!
-```
-
-### 2. View Dashboard
-
-Display calculated metrics and suggestions:
+## 🎯 Complete Workflow Example
 
 ```bash
-python view_dashboard.py esp32-a1
-```
+# 1. Navigate and activate
+cd somnomat_webservice
+source ../.webservice/bin/activate
 
-**Output:**
-```
-📊 Metrics:
-  Sleep Consistency:    78.45/100
-  Bedtime Consistency:  85.23/100
-  Bed Usage:            28.33%
-  Daily Occupancy:      6.8 hours/day
-  Average Sleep:        7.50 hours/night
+# 2. Create account
+python auth_cli.py signup alice@example.com SecurePass123 "Alice"
 
-💡 Suggestions:
-  🌙 Awakening: Consider reviewing your sleep environment...
-  ⏱️  Average Sleep: Great! You're getting 7-9 hours of sleep.
-  📅 Consistency: Stick to a regular bedtime and wake time.
-```
+# 3. Create device with realistic sleep data
+python setup_device.py "Alice's Bedroom"
 
-### 3. Statistical Analysis
+# 4. View dashboard
+streamlit run view_dashboard_streamlit_auth.py
 
-Perform detailed sleep analysis:
-
-```bash
-python analyze_sleep_data.py esp32-a1
-```
-
-**Output:**
-```
-Sleep Statistics:
-  Total sessions: 30
-  
-  Duration:
-    Average: 7.50 hours
-    Min: 6.20 hours
-    Max: 8.90 hours
-  
-  Quality Score:
-    Average: 82.3/100
-    Best: 95/100
-    Worst: 68/100
+# Done! 🎉
 ```
 
 ---
 
-## 🔧 Python API
+## 📊 Dashboard Features
 
-### Create Sleep Session
+- ✅ **Authentication** - Secure login/signup
+- ✅ **Multi-device support** - Switch between devices
+- ✅ **Comparison mode** - Compare two devices side-by-side
+- ✅ **Sleep metrics** - Consistency scores, bed usage, interruptions
+- ✅ **Visualizations** - Sleep patterns, trends, heatmaps
+- ✅ **Personalized suggestions** - AI-generated sleep advice
+- ✅ **Data export** - Download metrics as JSON/CSV
 
-```python
-from supabase_api_client import create_sleep_session
+---
 
-session = create_sleep_session(
-    device_id="esp32-a1",
-    session_start="2024-01-15T22:00:00Z",
-    session_end="2024-01-16T06:00:00Z",
-    duration_hours=8.0,
-    sleep_quality_score=90,
-    interruptions=1,
-    notes="Excellent sleep"
-)
-```
+## 🔐 Security
 
-### Query Sessions
-
-```python
-from supabase_api_client import get_sleep_sessions
-
-# Get all sessions for a device
-sessions = get_sleep_sessions(device_id="esp32-a1", limit=100)
-
-# Get sessions in date range
-from supabase_api_client import get_sessions_by_date_range
-recent = get_sessions_by_date_range("esp32-a1", "2024-01-01T00:00:00Z", "2024-01-31T23:59:59Z")
-```
-
-### Calculate Metrics
-
-```python
-from calculate_dashboard import calculate_and_update_dashboard
-
-# Calculate and store dashboard metrics
-calculate_and_update_dashboard("esp32-a1", days_back=30)
-```
+- **JWT Authentication** - Token-based user sessions
+- **Row-Level Security** - Database enforces user isolation
+- **Automatic device linking** - New devices auto-link to creator
+- **Role-based access** - Owner/viewer/admin permissions
+- **Session persistence** - Saved in `~/.somnomat_session.json` (600 permissions)
 
 ---
 
@@ -172,47 +150,58 @@ calculate_and_update_dashboard("esp32-a1", days_back=30)
 
 ```
 somnomat_webservice/
-├── .env                          # Supabase credentials
-├── supabase_api_client.py       # Core API wrapper
-├── calculate_dashboard.py       # Metrics calculator
-├── view_dashboard.py            # Dashboard viewer
-├── analyze_sleep_data.py        # Statistical analysis
-└── seed_sleep_sessions.py       # Test data generator
+├── .env                                # Supabase credentials (gitignored)
+├── auth_cli.py                        # Authentication CLI
+├── setup_device.py                    # Device setup with data
+├── calculate_dashboard.py             # Metrics calculator
+├── view_dashboard_streamlit_auth.py   # Authenticated dashboard
+├── supabase_auth_client.py           # Authentication wrapper
+└── supabase_api_client_somnomat.py   # API client
 ```
 
 ---
 
 ## 🐛 Troubleshooting
 
-### "Row-level security policy violated"
-
-Disable RLS in Supabase Dashboard:
-- **Table Editor** → **sleep_sessions** → Toggle **RLS** off
-
-### "No module named 'supabase'"
+### Virtual environment not activated
 
 ```bash
 source ../.webservice/bin/activate
-pip install supabase
+which python  # Should show .webservice path
 ```
 
-### "SUPABASE_URL not set"
+### Not signed in
 
-Ensure `.env` file exists with:
-```env
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_KEY=your-anon-key-here
+```bash
+python auth_cli.py whoami  # Check status
+python auth_cli.py signin your@email.com password
+```
+
+### No devices found
+
+```bash
+python auth_cli.py devices  # List devices
+python setup_device.py "New Device"  # Create one
+```
+
+### Dashboard not loading
+
+```bash
+# Reinstall Streamlit
+pip uninstall streamlit -y
+pip install streamlit
+streamlit run view_dashboard_streamlit_auth.py
 ```
 
 ---
 
 ## 📚 Resources
 
-- [Supabase Dashboard](https://supabase.com/dashboard/project/xybqmwkxsriatdfvhpym)
+- [Supabase Dashboard](https://supabase.com/dashboard)
 - [Supabase Python Docs](https://github.com/supabase-community/supabase-py)
-- [Project Documentation](https://supabase.com/docs)
+- [Streamlit Docs](https://docs.streamlit.io)
 
 ---
 
-**Version:** 0.2.0  
+**Version:** 1.0.0  
 **Last Updated:** January 2025
