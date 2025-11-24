@@ -42,88 +42,50 @@ class SupabaseAuthClient:
         self.user = None
         self.session = None
         
+        # Session file (for local development)
+        self.session_file = SESSION_FILE
+        
         # Try to load existing session
         self._load_session()
     
     # ==================== Session Persistence ====================
     
-    def _save_session(self):
-        """Save session to file for persistence across CLI calls."""
-        if self.session:
-            try:
-                session_data = {
-                    "access_token": self.session.access_token, # Used to access protected resources (short lived)
-                    "refresh_token": self.session.refresh_token,
-                    "user": {
-                        "id": self.user.id,
-                        "email": self.user.email,
-                        "user_metadata": self.user.user_metadata if hasattr(self.user, 'user_metadata') else {}
-                    }
-                }
-                
-                print(f"💾 Saving session to: {SESSION_FILE}")  
-                
-                with open(SESSION_FILE, 'w') as f:
-                    json.dump(session_data, f)
-                
-                # Make file readable only by user (for security)
-                os.chmod(SESSION_FILE, 0o600)
-                
-                print(f"✅ Session saved successfully")  
-                
-            except Exception as e:
-                print(f"⚠️  Warning: Could not save session: {e}")
+    def _save_session(self, session: Dict[str, Any]):
+        """Save session to file and Streamlit session state."""
+        try:
+            import streamlit as st
+            # Save to Streamlit session state in cloud
+            if hasattr(st, 'session_state'):
+                st.session_state.auth_session = session
+        except ImportError:
+            pass
+        
+        # Also save to file for local development
+        with open(self.session_file, 'w') as f:
+            json.dump(session, f, indent=2)
+        self.session_file.chmod(0o600)
     
-    def _load_session(self):
-        """Load session from file if it exists."""
-        if SESSION_FILE.exists():
-            print(f"📂 Loading session from: {SESSION_FILE}")
-            
-            try:
-                with open(SESSION_FILE, 'r') as f:
-                    session_data = json.load(f)
-                
-                # Set the session in the Supabase client
-                access_token = session_data.get("access_token")
-                
-                if access_token:
-                    print(f"🔑 Found access token, setting session...")  
-                    
-                    # Set the auth token
-                    self.client.auth.set_session(
-                        access_token=access_token,
-                        refresh_token=session_data.get("refresh_token")
-                    )
-                    
-                    # Try to get current user to verify session is valid
-                    try:
-                        user_response = self.client.auth.get_user()
-                        if user_response and user_response.user:
-                            self.user = user_response.user
-                            self.session = self.client.auth.get_session()
-                            print(f"✅ Session loaded for: {self.user.email}")  
-                            return True
-                    except Exception as e:
-                        print(f"❌ Session expired or invalid: {e}")  
-                        # Session expired, remove it
-                        self._clear_session()
-                        return False
-                    
-            except Exception as e:
-                print(f"❌ Error loading session: {e}")  
-                # If session file is corrupted, remove it
-                self._clear_session()
-                return False
-        else:
-            print(f"📂 No session file found at: {SESSION_FILE}")
+    def _load_session(self) -> Optional[Dict[str, Any]]:
+        """Load session from file or Streamlit session state."""
+        try:
+            import streamlit as st
+            # Use Streamlit session state in cloud
+            if hasattr(st, 'session_state') and 'auth_session' in st.session_state:
+                return st.session_state.auth_session
+        except ImportError:
+            pass
     
-        return False
-    
+        # Fall back to file-based session for local development
+        if self.session_file.exists():
+            with open(self.session_file, 'r') as f:
+                return json.load(f)
+        return None
+
     def _clear_session(self):
         """Clear session file."""
-        if SESSION_FILE.exists():
+        if self.session_file.exists():
             try:
-                SESSION_FILE.unlink()
+                self.session_file.unlink()
             except:
                 pass
     
@@ -157,7 +119,7 @@ class SupabaseAuthClient:
             if response.user:
                 self.user = response.user
                 self.session = response.session
-                self._save_session()
+                self._save_session(response.session)
                 print(f"✅ User {email} signed up successfully!")
                 return {"user": response.user, "session": response.session}
             
@@ -192,7 +154,7 @@ class SupabaseAuthClient:
             if response.user:
                 self.user = response.user
                 self.session = response.session
-                self._save_session()
+                self._save_session(response.session)
                 print(f"✅ User {email} signed in successfully!")
                 return {"user": response.user, "session": response.session}
             
@@ -272,7 +234,7 @@ class SupabaseAuthClient:
             response = self.client.auth.update_user(attributes)
             if response.user:
                 self.user = response.user
-                self._save_session()
+                self._save_session(response.session)
                 print("✅ User updated successfully!")
                 return response.user
             return None
@@ -285,7 +247,7 @@ class SupabaseAuthClient:
         try:
             response = self.client.auth.refresh_session()
             self.session = response.session
-            self._save_session()
+            self._save_session(response.session)
             return response.session
         except Exception as e:
             print(f"❌ Refresh session error: {e}")
