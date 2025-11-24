@@ -217,36 +217,113 @@ def get_user_settings_by_id(settings_id: int) -> Optional[Dict[str, Any]]:
     return response.data[0] if response.data else None
 
 
-def get_user_settings_by_device(device_id: int) -> Optional[Dict[str, Any]]:
-    """Get user settings for a specific device."""
-    response = supabase.table("user_settings") \
-        .select("*") \
-        .eq("device_id", device_id) \
-        .execute()
+def get_user_settings(device_id: int, user_id: str) -> Dict[str, Any] | None:
+    """
+    Get user settings for a specific device.
     
-    return response.data[0] if response.data else None
-
-
-def update_user_settings(settings_id: int, **updates) -> Dict[str, Any]:
-    """Update user settings."""
-    # Remove None values
-    updates = {k: v for k, v in updates.items() if v is not None}
+    Args:
+        device_id: Device ID
+        user_id: User ID (from auth.get_current_user().id)
     
-    response = supabase.table("user_settings") \
-        .update(updates) \
-        .eq("id", settings_id) \
-        .execute()
-    
-    return response.data[0] if response.data else None
-
-
-def delete_user_settings(settings_id: int) -> bool:
-    """Delete user settings."""
+    Returns:
+        User settings dictionary or None if not found
+    """
     try:
-        response = supabase.table("user_settings") \
-            .delete() \
-            .eq("id", settings_id) \
+        response = supabase.table('user_settings') \
+            .select('*') \
+            .eq('device_id', device_id) \
+            .eq('user_id', user_id) \
             .execute()
+        
+        if response.data and len(response.data) > 0:
+            return response.data[0]
+        else:
+            return None
+    except Exception as e:
+        print(f"Error fetching user settings: {e}")
+        return None
+
+
+def create_or_update_user_settings(
+    device_id: int,
+    user_id: str,
+    amplitude: int,
+    frequency: int,
+    vibration: int
+) -> Dict[str, Any] | None:
+    """
+    Create or update user settings for a device.
+    
+    Args:
+        device_id: Device ID
+        user_id: User ID (from auth.get_current_user().id)
+        amplitude: Amplitude setting (1-10)
+        frequency: Frequency setting (1-10)
+        vibration: Vibration setting (1-5)
+    
+    Returns:
+        Updated settings dictionary or None if failed
+    """
+    try:
+        # Validate inputs
+        if not (1 <= amplitude <= 10):
+            raise ValueError("Amplitude must be between 1 and 10")
+        if not (1 <= frequency <= 10):
+            raise ValueError("Frequency must be between 1 and 10")
+        if not (1 <= vibration <= 5):
+            raise ValueError("Vibration must be between 1 and 5")
+        
+        # Check if settings already exist
+        existing = get_user_settings(device_id, user_id)
+        
+        settings_data = {
+            'device_id': device_id,
+            'user_id': user_id,
+            'amplitude': amplitude,
+            'frequency': frequency,
+            'vibration': vibration,
+            'updated_at': datetime.now(timezone.utc).isoformat()
+        }
+        
+        if existing:
+            # Update existing settings
+            response = supabase.table('user_settings') \
+                .update(settings_data) \
+                .eq('device_id', device_id) \
+                .eq('user_id', user_id) \
+                .execute()
+        else:
+            # Create new settings
+            settings_data['created_at'] = datetime.now(timezone.utc).isoformat()
+            response = supabase.table('user_settings') \
+                .insert(settings_data) \
+                .execute()
+        
+        return response.data[0] if response.data else None
+        
+    except Exception as e:
+        print(f"Error creating/updating user settings: {e}")
+        return None
+
+
+def delete_user_settings(device_id: int, user_id: str) -> bool:
+    """
+    Delete user settings for a device.
+    
+    Args:
+        device_id: Device ID
+        user_id: User ID
+    
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        response = supabase.table('user_settings') \
+            .delete() \
+            .eq('device_id', device_id) \
+            .eq('user_id', user_id) \
+            .execute()
+        
         return True
     except Exception as e:
         print(f"Error deleting user settings: {e}")
@@ -318,7 +395,7 @@ def get_raw_occupancy_by_id(occupancy_id: int) -> Optional[Dict[str, Any]]:
 
 def get_raw_occupancy_by_device(
     device_id: int,
-    limit: int = 100,
+    limit: int = 50000,
     offset: int = 0
 ) -> List[Dict[str, Any]]:
     """Get raw occupancy readings for a device."""
@@ -330,6 +407,37 @@ def get_raw_occupancy_by_device(
         .execute()
     
     return response.data
+
+
+def get_all_raw_occupancy_by_device(device_id: int) -> list:
+    """Get ALL raw occupancy data for a device (no limit)."""
+    try:
+        all_data = []
+        page_size = 1000
+        offset = 0
+        
+        while True:
+            response = supabase.table('raw_occupancy') \
+                .select('*') \
+                .eq('device_id', device_id) \
+                .order('created_at', desc=True) \
+                .range(offset, offset + page_size - 1) \
+                .execute()
+            
+            if not response.data:
+                break
+            
+            all_data.extend(response.data)
+            
+            if len(response.data) < page_size:
+                break
+            
+            offset += page_size
+        
+        return all_data
+    except Exception as e:
+        print(f"Error fetching all occupancy data: {e}")
+        return []
 
 
 def get_raw_occupancy_by_date_range(

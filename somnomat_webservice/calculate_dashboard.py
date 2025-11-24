@@ -2,7 +2,7 @@
 Calculate dashboard metrics from raw occupancy data and store in sleep_dashboard table.
 """
 from supabase_api_client_somnomat import (
-    get_raw_occupancy_by_device,
+    get_all_raw_occupancy_by_device,
     get_device_by_id,
     create_or_update_dashboard
 )
@@ -11,59 +11,181 @@ from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Any, Tuple
 
 
-def process_occupancy_into_sessions(occupancy_readings: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def process_occupancy_into_sessions(
+    occupancy_readings: List[Dict[str, Any]], 
+    min_duration_minutes: int = 60,
+    gap_tolerance_minutes: int = 30
+) -> List[Dict[str, Any]]:
     """
     Convert raw occupancy readings into sleep sessions.
-    A session starts when occupied=True and ends when occupied=False.
+    
+    Key improvements:
+    - Duration calculated by COUNTING occupied 5-minute intervals, not time span
+    - Merges sessions separated by small gaps (night wakings < 30 min)
+    - Groups multiple sessions per night into one
+    - More accurate representation of actual sleep time
+    
+    Args:
+        occupancy_readings: List of occupancy readings (5-min intervals)
+        min_duration_minutes: Minimum session duration to count (default: 60 min)
+        gap_tolerance_minutes: Max gap to still consider same session (default: 30 min)
+    
+    Returns:
+        List of sleep sessions with accurate duration
     """
     if not occupancy_readings:
         return []
     
-    sessions = []
-    current_session_start = None
-    
     # Sort by timestamp
     sorted_readings = sorted(occupancy_readings, key=lambda x: x['created_at'])
     
-    for reading in sorted_readings:
-        occupied = reading['occupied']
-        timestamp = datetime.fromisoformat(reading['created_at'].replace('Z', '+00:00'))
-        
-        if occupied and current_session_start is None:
-            # Start of a new session
-            current_session_start = timestamp
-        elif not occupied and current_session_start is not None:
-            # End of current session
-            session_end = timestamp
-            duration_seconds = (session_end - current_session_start).total_seconds()
-            duration_hours = duration_seconds / 3600
-            
-            # Only count sessions longer than 1 hour
-            if duration_hours >= 1.0:
-                sessions.append({
-                    'session_start': current_session_start,
-                    'session_end': session_end,
-                    'duration_hours': duration_hours,
-                    'duration_min': duration_hours * 60
-                })
-            
-            current_session_start = None
+    sessions = []
+    current_session_start = None
+    current_session_occupied_count = 0  # Count occupied intervals
+    last_occupied_time = None
+    last_reading_time = None
     
-    # Handle case where last session is still ongoing
-    if current_session_start is not None:
-        session_end = datetime.now(timezone.utc)
-        duration_seconds = (session_end - current_session_start).total_seconds()
-        duration_hours = duration_seconds / 3600
+    for reading in sorted_readings:
+        timestamp = datetime.fromisoformat(reading['created_at'].replace('Z', '+00:00'))
+        is_occupied = reading['occupied']
         
-        if duration_hours >= 1.0:
+        if is_occupied:
+            if current_session_start is None:
+                # Start new session
+                current_session_start = timestamp
+                last_occupied_time = timestamp
+                current_session_occupied_count = 1
+            else:
+                # Check gap since last occupied reading
+                time_gap = (timestamp - last_occupied_time).total_seconds() / 60
+                
+                if time_gap <= gap_tolerance_minutes:
+                    # Continue current session (small gap, like brief waking)
+                    last_occupied_time = timestamp
+                    current_session_occupied_count += 1
+                else:
+                    # Gap too large - end current session, start new one
+                    duration_minutes = current_session_occupied_count * 5
+                    
+                    if duration_minutes >= min_duration_minutes:
+                        sessions.append({
+                            'session_start': current_session_start,
+                            'session_end': last_occupied_time,
+                            'duration_hours': duration_minutes / 60,
+                            'duration_min': duration_minutes,
+                            'occupied_intervals': current_session_occupied_count
+                        })
+                    
+                    # Start new session
+                    current_session_start = timestamp
+                    last_occupied_time = timestamp
+                    current_session_occupied_count = 1
+        else:
+            # Not occupied
+            if current_session_start is not None and last_occupied_time is not None:
+                # Check if gap is too large to continue session
+                time_gap = (timestamp - last_occupied_time).total_seconds() / 60
+                
+                if time_gap > gap_tolerance_minutes:
+                    # End the session
+                    duration_minutes = current_session_occupied_count * 5
+                    
+                    if duration_minutes >= min_duration_minutes:
+                        sessions.append({
+                            'session_start': current_session_start,
+                            'session_end': last_occupied_time,
+                            'duration_hours': duration_minutes / 60,
+                            'duration_min': duration_minutes,
+                            'occupied_intervals': current_session_occupied_count
+                        })
+                    
+                    current_session_start = None
+                    last_occupied_time = None
+                    current_session_occupied_count = 0
+        
+        last_reading_time = timestamp
+    
+    # Handle last session if still active
+    if current_session_start is not None and last_occupied_time is not None:
+        duration_minutes = current_session_occupied_count * 5
+        
+        if duration_minutes >= min_duration_minutes:
             sessions.append({
                 'session_start': current_session_start,
-                'session_end': session_end,
-                'duration_hours': duration_hours,
-                'duration_min': duration_hours * 60
+                'session_end': last_occupied_time,
+                'duration_hours': duration_minutes / 60,
+                'duration_min': duration_minutes,
+                'occupied_intervals': current_session_occupied_count
             })
     
-    return sessions
+    # Merge sessions that belong to the same night
+    merged_sessions = merge_sessions_by_night(sessions)
+    
+    return merged_sessions
+
+
+def merge_sessions_by_night(sessions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Merge multiple sessions that belong to the same night.
+    
+    A "night" is defined as starting at 6 PM and ending at 2 PM the next day.
+    This handles multiple sessions caused by night wakings.
+    
+    Duration is calculated as the SUM of all session durations in that night.
+    """
+    if not sessions:
+        return []
+    
+    # Group sessions by night
+    nights = {}
+    
+    for session in sessions:
+        start_time = session['session_start']
+        
+        # Determine which "night" this belongs to
+        # If start time is before 2 PM (14:00), it belongs to previous night
+        # Otherwise it belongs to current night
+        if start_time.hour < 14:
+            # Belongs to previous night
+            night_date = (start_time - timedelta(days=1)).date()
+        else:
+            # Belongs to current night
+            night_date = start_time.date()
+        
+        if night_date not in nights:
+            nights[night_date] = []
+        
+        nights[night_date].append(session)
+    
+    # Merge sessions for each night
+    merged = []
+    
+    for night_date, night_sessions in sorted(nights.items()):
+        if not night_sessions:
+            continue
+        
+        # Sort sessions by start time
+        night_sessions.sort(key=lambda x: x['session_start'])
+        
+        # Find earliest start and latest end
+        earliest_start = min(s['session_start'] for s in night_sessions)
+        latest_end = max(s['session_end'] for s in night_sessions)
+        
+        # Sum the actual occupied time (not the span)
+        total_duration_hours = sum(s['duration_hours'] for s in night_sessions)
+        total_duration_min = sum(s['duration_min'] for s in night_sessions)
+        total_intervals = sum(s['occupied_intervals'] for s in night_sessions)
+        
+        merged.append({
+            'session_start': earliest_start,
+            'session_end': latest_end,
+            'duration_hours': total_duration_hours,
+            'duration_min': total_duration_min,
+            'occupied_intervals': total_intervals,
+            'num_interruptions': len(night_sessions) - 1  # Number of gaps
+        })
+    
+    return merged
 
 
 def calculate_sleep_consistency(sessions: List[Dict[str, Any]]) -> float:
@@ -150,21 +272,13 @@ def calculate_daily_occupancy(sessions: List[Dict[str, Any]]) -> float:
 def count_interruptions(sessions: List[Dict[str, Any]]) -> int:
     """
     Count total number of sleep interruptions.
-    An interruption is when there are multiple sessions per night.
+    Now uses the num_interruptions from merged sessions.
     """
     if not sessions:
         return 0
     
-    # Group sessions by date
-    sessions_by_date: Dict[Any, int] = {}
-    for s in sessions:
-        if s.get('session_start'):
-            date = s['session_start'].date()
-            sessions_by_date[date] = sessions_by_date.get(date, 0) + 1
-    
-    # Total interruptions = total sessions - total nights
-    # (e.g., 3 sessions on one night = 2 interruptions)
-    total_interruptions = sum(max(0, count - 1) for count in sessions_by_date.values())
+    # Sum up interruptions from all nights
+    total_interruptions = sum(s.get('num_interruptions', 0) for s in sessions)
     
     return total_interruptions
 
@@ -214,13 +328,13 @@ def generate_suggestions(metrics: Dict[str, Any]) -> Dict[str, str]:
     return suggestions
 
 
-def calculate_and_update_dashboard(device_id: int, days_back: int = 30) -> Dict[str, Any] | None:
+def calculate_and_update_dashboard(device_id: int, days_back: int = None) -> Dict[str, Any] | None:
     """
     Calculate all dashboard metrics for a device and update the database.
     
     Args:
         device_id: Device ID (integer primary key)
-        days_back: Number of days to analyze (default: 30)
+        days_back: Number of days to analyze (default: None = all data)
     
     Returns:
         Updated dashboard data or None if failed
@@ -238,30 +352,52 @@ def calculate_and_update_dashboard(device_id: int, days_back: int = 30) -> Dict[
     print(f"✅ Device: {device['name']} (ID: {device_id})")
     
     # Get raw occupancy data
-    print(f"📊 Fetching raw occupancy data for last {days_back} days...")
-    
-    # Calculate date range
-    end_date = datetime.now(timezone.utc)
-    start_date = end_date - timedelta(days=days_back)
+    if days_back:
+        print(f"📊 Fetching raw occupancy data for last {days_back} days...")
+    else:
+        print(f"📊 Fetching all raw occupancy data...")
     
     # Fetch occupancy readings
-    occupancy_readings = get_raw_occupancy_by_device(
-        device_id=device_id,
-        limit=10000  # Get enough data for analysis
-    )
+    occupancy_readings = get_all_raw_occupancy_by_device(device_id=device_id)
     
     if not occupancy_readings:
         print("❌ No occupancy data found")
         print(f"   Make sure you have occupancy readings in the database")
         return None
     
-    # Filter readings to date range
-    filtered_readings = [
-        r for r in occupancy_readings
-        if start_date <= datetime.fromisoformat(r['created_at'].replace('Z', '+00:00')) <= end_date
-    ]
-    
-    print(f"✅ Found {len(filtered_readings)} occupancy readings in the last {days_back} days\n")
+    # Filter readings to date range if specified
+    if days_back:
+        end_date = datetime.now(timezone.utc)
+        start_date = end_date - timedelta(days=days_back)
+        
+        filtered_readings = [
+            r for r in occupancy_readings
+            if start_date <= datetime.fromisoformat(r['created_at'].replace('Z', '+00:00')) <= end_date
+        ]
+        
+        print(f"✅ Found {len(filtered_readings)} occupancy readings in the last {days_back} days")
+        
+        if len(filtered_readings) == 0:
+            print(f"\n⚠️  No data in the last {days_back} days.")
+            print(f"   Total readings available: {len(occupancy_readings)}")
+            if occupancy_readings:
+                first_reading = min(occupancy_readings, key=lambda x: x['created_at'])
+                last_reading = max(occupancy_readings, key=lambda x: x['created_at'])
+                print(f"   Data range: {first_reading['created_at'][:10]} to {last_reading['created_at'][:10]}")
+            return None
+    else:
+        filtered_readings = occupancy_readings
+        
+        # Calculate actual days period from data
+        if filtered_readings:
+            dates = [datetime.fromisoformat(r['created_at'].replace('Z', '+00:00')).date() 
+                    for r in filtered_readings]
+            min_date = min(dates)
+            max_date = max(dates)
+            days_back = (max_date - min_date).days + 1
+            
+            print(f"✅ Found {len(filtered_readings)} occupancy readings")
+            print(f"   Date range: {min_date} to {max_date} ({days_back} days)")
     
     # Process raw occupancy data into sessions
     print("🔄 Processing occupancy data into sleep sessions...")
@@ -284,7 +420,7 @@ def calculate_and_update_dashboard(device_id: int, days_back: int = 30) -> Dict[
     avg_sleep = sum(s['duration_hours'] for s in sessions) / len(sessions) if sessions else 0
     
     # Count unique nights
-    unique_nights = len(set(s['session_start'].date() for s in sessions))
+    unique_nights = len(sessions)  # Now each session represents one night
     
     # Create metrics dictionary
     metrics = {
@@ -345,7 +481,8 @@ if __name__ == "__main__":
     import sys
     
     # Get device ID from command line or use default
-    device_id = int(sys.argv[1]) if len(sys.argv) > 1 else 9  # Default to test device
-    days = int(sys.argv[2]) if len(sys.argv) > 2 else 30
+    device_id = int(sys.argv[1]) if len(sys.argv) > 1 else 9
+    days = int(sys.argv[2]) if len(sys.argv) > 2 else None  # None = all data
+    
     # Calculate the dashboard and write the data to Supabase
     calculate_and_update_dashboard(device_id, days_back=days)

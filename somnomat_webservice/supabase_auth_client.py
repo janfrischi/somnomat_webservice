@@ -1,9 +1,10 @@
 """
-Authentication client for Supabase with best practices.
+Authentication client for Supabase: Handles all user authentication, session management and device control access.
 Separate from the main API client to handle user authentication.
 """
 import os
 import json
+import time
 from pathlib import Path
 from supabase import create_client, Client
 from dotenv import load_dotenv
@@ -23,7 +24,13 @@ SESSION_FILE = Path.home() / ".somnomat_session.json"
 
 
 class SupabaseAuthClient:
-    """Wrapper for Supabase client with authentication."""
+    """Wrapper for Supabase client with authentication.
+    Key Features:
+    1. User signup/signin/signout
+    2. Session persistence (saves to ~/.somnomat_session.json)
+    3. JWT token management (auto-refresh)
+    4. Device access control
+    """
     
     def __init__(self):
         """Initialize the auth client with a fresh Supabase instance."""
@@ -41,7 +48,7 @@ class SupabaseAuthClient:
         if self.session:
             try:
                 session_data = {
-                    "access_token": self.session.access_token,
+                    "access_token": self.session.access_token, # Used to access protected resources (short lived)
                     "refresh_token": self.session.refresh_token,
                     "user": {
                         "id": self.user.id,
@@ -50,7 +57,7 @@ class SupabaseAuthClient:
                     }
                 }
                 
-                print(f"💾 Saving session to: {SESSION_FILE}")  # ← ADD THIS
+                print(f"💾 Saving session to: {SESSION_FILE}")  
                 
                 with open(SESSION_FILE, 'w') as f:
                     json.dump(session_data, f)
@@ -58,7 +65,7 @@ class SupabaseAuthClient:
                 # Make file readable only by user (for security)
                 os.chmod(SESSION_FILE, 0o600)
                 
-                print(f"✅ Session saved successfully")  # ← ADD THIS
+                print(f"✅ Session saved successfully")  
                 
             except Exception as e:
                 print(f"⚠️  Warning: Could not save session: {e}")
@@ -66,7 +73,7 @@ class SupabaseAuthClient:
     def _load_session(self):
         """Load session from file if it exists."""
         if SESSION_FILE.exists():
-            print(f"📂 Loading session from: {SESSION_FILE}")  # ← ADD THIS
+            print(f"📂 Loading session from: {SESSION_FILE}")
             
             try:
                 with open(SESSION_FILE, 'r') as f:
@@ -76,7 +83,7 @@ class SupabaseAuthClient:
                 access_token = session_data.get("access_token")
                 
                 if access_token:
-                    print(f"🔑 Found access token, setting session...")  # ← ADD THIS
+                    print(f"🔑 Found access token, setting session...")  
                     
                     # Set the auth token
                     self.client.auth.set_session(
@@ -90,21 +97,21 @@ class SupabaseAuthClient:
                         if user_response and user_response.user:
                             self.user = user_response.user
                             self.session = self.client.auth.get_session()
-                            print(f"✅ Session loaded for: {self.user.email}")  # ← ADD THIS
+                            print(f"✅ Session loaded for: {self.user.email}")  
                             return True
                     except Exception as e:
-                        print(f"❌ Session expired or invalid: {e}")  # ← ADD THIS
+                        print(f"❌ Session expired or invalid: {e}")  
                         # Session expired, remove it
                         self._clear_session()
                         return False
                     
             except Exception as e:
-                print(f"❌ Error loading session: {e}")  # ← ADD THIS
+                print(f"❌ Error loading session: {e}")  
                 # If session file is corrupted, remove it
                 self._clear_session()
                 return False
         else:
-            print(f"📂 No session file found at: {SESSION_FILE}")  # ← ADD THIS
+            print(f"📂 No session file found at: {SESSION_FILE}")
     
         return False
     
@@ -119,7 +126,12 @@ class SupabaseAuthClient:
     # ==================== Authentication Methods ====================
     
     def sign_up(self, email: str, password: str, user_metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """Sign up a new user.
+        """Create a new user account.
+        Flow:
+        1. Send crednetials to Supabase
+        2. Supabase creates user in auth.users table
+        3. Returns JWT token
+        4. Save token to ~/.somnomat_session.json (Local session file)
         
         Args:
             email: User's email
@@ -153,6 +165,12 @@ class SupabaseAuthClient:
     
     def sign_in(self, email: str, password: str) -> Dict[str, Any]:
         """Sign in an existing user.
+        Flow:
+        1. Send credentials to Supabase
+        2. Supabase validates password hash
+        3. Returns JWT token (expires in 1 hour)
+        4. Token contains: user_id, email, role
+        5. Save session locally
         
         Args:
             email: User's email
@@ -275,6 +293,11 @@ class SupabaseAuthClient:
     def create_device(self, name: str, mac: Optional[str] = None, boardtype: Optional[int] = None, 
                       hardware_version: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """Create a new device and auto-link to current user.
+        Flow:
+        1. INSERT INTO devices (name, mac, ...)
+        2. Database trigger fires: handle_new_device()
+        3. Trigger inserts: user_devices(user_id, device_id, 'owner')
+        4. User now has access via RLS
         
         Args:
             name: Device name
@@ -308,7 +331,6 @@ class SupabaseAuthClient:
                 print(f"✅ Device created: {device['name']} (ID: {device['id']})")
                 
                 # The database trigger should auto-link, but verify
-                import time
                 time.sleep(0.3)  # Give trigger time to execute
                 
                 # Check if auto-linked
@@ -325,6 +347,73 @@ class SupabaseAuthClient:
         except Exception as e:
             print(f"❌ Error creating device: {e}")
             return None
+    
+    def register_device(self, device_name: str, boardtype: str = "ESP32", mac: str = None, 
+           hardware_version: str = "v1.0", role: str = "owner") -> dict:
+        """
+        Register a new device and link it to the current user.
+        Note: Device will be automatically linked via database trigger.
+        
+        Args:
+            device_name: Name for the device
+            boardtype: Type of board name (default: ESP32) - will be converted to ID
+            mac: MAC address (optional, will be generated if not provided)
+            hardware_version: Hardware version (default: v1.0)
+            role: User's role for this device (default: owner)
+        
+        Returns:
+            dict with device_id, mac, and success status
+        """
+        user = self.get_current_user()
+        if not user:
+            return {"error": "User not authenticated"}
+        
+        # Generate MAC if not provided
+        if not mac:
+            import random
+            mac = ':'.join([f'{random.randint(0, 255):02X}' for _ in range(6)])
+        
+        try:
+            # Map board type names to IDs
+            boardtype_map = {
+                "ESP32": 1,
+                "ESP8266": 2,
+                "Arduino": 3
+            }
+            
+            # Get boardtype ID, default to 1 (ESP32) if not found
+            boardtype_id = boardtype_map.get(boardtype, 1)
+            
+            # Insert device (trigger will auto-link to user)
+            device_result = self.client.table('devices').insert({
+                'name': device_name,
+                'boardtype': boardtype_id,
+                'mac': mac,
+                'hardware_version': hardware_version
+            }).execute()
+            
+            if not device_result.data:
+                return {"error": "Failed to create device"}
+            
+            device_id = device_result.data[0]['id']
+            
+            # Verify the device was linked (by trigger)
+            import time
+            time.sleep(0.5)  # Give trigger time to execute
+            
+            if not self.has_device_access(device_id):
+                return {"error": "Device created but not linked to user. Please contact support."}
+            
+            return {
+                "success": True,
+                "device_id": device_id,
+                "device_name": device_name,
+                "mac": mac,
+                "boardtype": boardtype
+            }
+        
+        except Exception as e:
+            return {"error": f"Registration failed: {str(e)}"}
     
     # ==================== User-Device Association ====================
     
@@ -432,6 +521,49 @@ class SupabaseAuthClient:
             print(f"❌ Check device access error: {e}")
             return False
     
+    def delete_device(self, device_id: int) -> dict:
+        """
+        Delete a device and all its associated data.
+        Only the owner can delete a device.
+        
+        Args:
+            device_id: ID of the device to delete
+        
+        Returns:
+            dict with success status
+        """
+        user = self.get_current_user()
+        if not user:
+            return {"error": "User not authenticated"}
+        
+        try:
+            # Check if user is the owner of the device
+            user_device = self.client.table('user_devices') \
+                .select('role') \
+                .eq('user_id', user.id) \
+                .eq('device_id', device_id) \
+                .execute()
+            
+            if not user_device.data:
+                return {"error": "Device not found or you don't have access"}
+            
+            if user_device.data[0]['role'] != 'owner':
+                return {"error": "Only device owners can delete devices"}
+            
+            # Delete the device (cascade will handle user_devices, occupancy data, etc.)
+            result = self.client.table('devices') \
+                .delete() \
+                .eq('id', device_id) \
+                .execute()
+            
+            if result.data:
+                return {"success": True, "device_id": device_id}
+            else:
+                return {"error": "Failed to delete device"}
+        
+        except Exception as e:
+            return {"error": f"Deletion failed: {str(e)}"}
+    
     # ==================== Helper Methods ====================
     
     def is_authenticated(self) -> bool:
@@ -456,5 +588,4 @@ class SupabaseAuthClient:
 
 
 # Global authenticated client instance (optional)
-# You can create instances as needed instead
 auth_client = SupabaseAuthClient()
