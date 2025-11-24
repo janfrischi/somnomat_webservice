@@ -10,11 +10,15 @@ from supabase import create_client, Client
 from dotenv import load_dotenv
 from typing import Optional, Dict, Any
 
-load_dotenv()
-
-# Initialize Supabase client (uses anon key for auth)
-SUPABASE_URL = os.getenv("SUPABASE_URL_CALMEA")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY_CALMEA")
+# Try to load from Streamlit secrets first, then fall back to .env
+try:
+    import streamlit as st
+    SUPABASE_URL = st.secrets["SUPABASE_URL_CALMEA"]
+    SUPABASE_KEY = st.secrets["SUPABASE_KEY_CALMEA"]
+except (ImportError, FileNotFoundError, KeyError):
+    load_dotenv()
+    SUPABASE_URL = os.getenv("SUPABASE_URL_CALMEA")
+    SUPABASE_KEY = os.getenv("SUPABASE_KEY_CALMEA")
 
 if not SUPABASE_URL or not SUPABASE_KEY:
     raise ValueError("SUPABASE_URL_CALMEA and SUPABASE_KEY_CALMEA must be set in .env file")
