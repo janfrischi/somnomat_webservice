@@ -41,7 +41,7 @@ if not user:
             logo = Image.open(logo_path)
             col1, col2, col3 = st.columns([1, 2, 1])
             with col2:
-                st.image(logo, use_container_width==True)
+                st.image(logo, use_container_width=True)
     except Exception as e:
         st.sidebar.caption("⚠️ Logo not found")
     
