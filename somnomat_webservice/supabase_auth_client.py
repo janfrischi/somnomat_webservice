@@ -5,6 +5,7 @@ Separate from the main API client to handle user authentication.
 import os
 import json
 import time
+import random
 from pathlib import Path
 from supabase import create_client, Client
 from dotenv import load_dotenv
@@ -375,7 +376,6 @@ class SupabaseAuthClient:
         
         # Generate MAC if not provided
         if not mac:
-            import random
             mac = ':'.join([f'{random.randint(0, 255):02X}' for _ in range(6)])
         
         try:
@@ -403,7 +403,6 @@ class SupabaseAuthClient:
             device_id = device_result.data[0]['id']
             
             # Verify the device was linked (by trigger)
-            import time
             time.sleep(0.5)  # Give trigger time to execute
             
             if not self.has_device_access(device_id):
