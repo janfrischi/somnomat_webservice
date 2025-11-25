@@ -16,9 +16,9 @@ from typing import Optional, Dict, Any
 try:
     RUNNING_IN_STREAMLIT = True
     SUPABASE_URL = st.secrets["SUPABASE_URL_CALMEA"]
-    print("Loaded SUPABASE_URL_CALMEA from Streamlit secrets")
+    st.write("Loaded SUPABASE_URL_CALMEA from Streamlit secrets")
     SUPABASE_KEY = st.secrets["SUPABASE_KEY_CALMEA"]
-    print("Loaded SUPABASE_KEY_CALMEA from Streamlit secrets")
+    st.write("Loaded SUPABASE_KEY_CALMEA from Streamlit secrets")
 except (ImportError, FileNotFoundError, KeyError):
     RUNNING_IN_STREAMLIT = False
     load_dotenv()
