@@ -6,6 +6,7 @@ import os
 import json
 import time
 import random
+import streamlit as st
 from pathlib import Path
 from supabase import create_client, Client
 from dotenv import load_dotenv
@@ -13,10 +14,11 @@ from typing import Optional, Dict, Any
 
 # Detect if running in Streamlit
 try:
-    import streamlit as st
     RUNNING_IN_STREAMLIT = True
     SUPABASE_URL = st.secrets["SUPABASE_URL_CALMEA"]
+    print("Loaded SUPABASE_URL_CALMEA from Streamlit secrets")
     SUPABASE_KEY = st.secrets["SUPABASE_KEY_CALMEA"]
+    print("Loaded SUPABASE_KEY_CALMEA from Streamlit secrets")
 except (ImportError, FileNotFoundError, KeyError):
     RUNNING_IN_STREAMLIT = False
     load_dotenv()
