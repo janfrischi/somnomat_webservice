@@ -12,7 +12,7 @@ from datetime import datetime, timedelta, timezone
 
 # Add logging at the very top
 print("=" * 60)
-print("🚀 STARTING STREAMLIT DASHBOARD")
+st.write("🚀 STARTING STREAMLIT DASHBOARD")
 print("=" * 60)
 print(f"Python version: {sys.version}")
 print(f"Current working directory: {os.getcwd()}")
