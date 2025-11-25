@@ -13,6 +13,7 @@ from datetime import datetime, timedelta, timezone
 # Add logging at the very top
 print("=" * 60)
 st.write("🚀 STARTING STREAMLIT DASHBOARD")
+st.text("🚀 STARTING STREAMLIT DASHBOARD")
 print("=" * 60)
 print(f"Python version: {sys.version}")
 print(f"Current working directory: {os.getcwd()}")
@@ -22,6 +23,7 @@ print("=" * 60)
 try:
     from supabase_auth_client import SupabaseAuthClient
     print("✅ Successfully imported SupabaseAuthClient")
+
 except Exception as e:
     print(f"❌ Error importing SupabaseAuthClient: {e}")
     print(traceback.format_exc())
@@ -102,7 +104,7 @@ except Exception as e:
 if not user:
     print("\n🔓 Showing login/signup page...")
     # ==================== LOGIN/SIGNUP PAGE ====================
-    
+    st.write("Loaded dashboard")
     # Load logo for login page
     try:
         logo_path = os.path.join(os.path.dirname(__file__), "calmea.png")
