@@ -5,26 +5,28 @@ Separate from the main API client to handle user authentication.
 import os
 import json
 import time
-import streamlit as st
 from pathlib import Path
 from supabase import create_client, Client
 from dotenv import load_dotenv
 from typing import Optional, Dict, Any
 
-# Try to load from Streamlit secrets first, then fall back to .env
+# Detect if running in Streamlit
 try:
+    import streamlit as st
+    RUNNING_IN_STREAMLIT = True
     SUPABASE_URL = st.secrets["SUPABASE_URL_CALMEA"]
     SUPABASE_KEY = st.secrets["SUPABASE_KEY_CALMEA"]
 except (ImportError, FileNotFoundError, KeyError):
+    RUNNING_IN_STREAMLIT = False
     load_dotenv()
     SUPABASE_URL = os.getenv("SUPABASE_URL_CALMEA")
     SUPABASE_KEY = os.getenv("SUPABASE_KEY_CALMEA")
 
 if not SUPABASE_URL or not SUPABASE_KEY:
-    raise ValueError("SUPABASE_URL_CALMEA and SUPABASE_KEY_CALMEA must be set in .env file")
+    raise ValueError("SUPABASE_URL_CALMEA and SUPABASE_KEY_CALMEA must be set")
 
-# Session file path
-SESSION_FILE = Path.home() / ".somnomat_session.json"
+# Session file path (only for CLI)
+SESSION_FILE = Path.home() / ".somnomat_session.json" if not RUNNING_IN_STREAMLIT else None
 
 
 class SupabaseAuthClient:
@@ -48,80 +50,79 @@ class SupabaseAuthClient:
     # ==================== Session Persistence ====================
     
     def _save_session(self):
-        """Save session to file for persistence across CLI calls."""
-        if self.session:
+        """Save session to file (CLI) or session_state (Streamlit)."""
+        if not self.session:
+            return
+        
+        session_data = {
+            "access_token": self.session.access_token,
+            "refresh_token": self.session.refresh_token,
+            "user": {
+                "id": self.user.id,
+                "email": self.user.email,
+                "user_metadata": self.user.user_metadata if hasattr(self.user, 'user_metadata') else {}
+            }
+        }
+        
+        if RUNNING_IN_STREAMLIT:
+            # Save to Streamlit session state
+            st.session_state['supabase_session'] = session_data
+        else:
+            # Save to file for CLI
             try:
-                session_data = {
-                    "access_token": self.session.access_token, # Used to access protected resources (short lived)
-                    "refresh_token": self.session.refresh_token,
-                    "user": {
-                        "id": self.user.id,
-                        "email": self.user.email,
-                        "user_metadata": self.user.user_metadata if hasattr(self.user, 'user_metadata') else {}
-                    }
-                }
-                
-                print(f"💾 Saving session to: {SESSION_FILE}")  
-                
                 with open(SESSION_FILE, 'w') as f:
                     json.dump(session_data, f)
-                
-                # Make file readable only by user (for security)
                 os.chmod(SESSION_FILE, 0o600)
-                
-                print(f"✅ Session saved successfully")  
-                
             except Exception as e:
                 print(f"⚠️  Warning: Could not save session: {e}")
     
     def _load_session(self):
-        """Load session from file if it exists."""
-        if SESSION_FILE.exists():
-            print(f"📂 Loading session from: {SESSION_FILE}")
-            
+        """Load session from file (CLI) or session_state (Streamlit)."""
+        session_data = None
+        
+        if RUNNING_IN_STREAMLIT:
+            # Load from Streamlit session state
+            session_data = st.session_state.get('supabase_session')
+        elif SESSION_FILE and SESSION_FILE.exists():
+            # Load from file for CLI
             try:
                 with open(SESSION_FILE, 'r') as f:
                     session_data = json.load(f)
-                
-                # Set the session in the Supabase client
-                access_token = session_data.get("access_token")
-                
-                if access_token:
-                    print(f"🔑 Found access token, setting session...")  
-                    
+            except Exception as e:
+                print(f"❌ Error loading session: {e}")
+                self._clear_session()
+                return False
+        
+        if session_data:
+            access_token = session_data.get("access_token")
+            
+            if access_token:
+                try:
                     # Set the auth token
                     self.client.auth.set_session(
                         access_token=access_token,
                         refresh_token=session_data.get("refresh_token")
                     )
                     
-                    # Try to get current user to verify session is valid
-                    try:
-                        user_response = self.client.auth.get_user()
-                        if user_response and user_response.user:
-                            self.user = user_response.user
-                            self.session = self.client.auth.get_session()
-                            print(f"✅ Session loaded for: {self.user.email}")  
-                            return True
-                    except Exception as e:
-                        print(f"❌ Session expired or invalid: {e}")  
-                        # Session expired, remove it
-                        self._clear_session()
-                        return False
-                    
-            except Exception as e:
-                print(f"❌ Error loading session: {e}")  
-                # If session file is corrupted, remove it
-                self._clear_session()
-                return False
-        else:
-            print(f"📂 No session file found at: {SESSION_FILE}")
-    
+                    # Verify session is valid
+                    user_response = self.client.auth.get_user()
+                    if user_response and user_response.user:
+                        self.user = user_response.user
+                        self.session = self.client.auth.get_session()
+                        return True
+                except Exception as e:
+                    # Session expired or invalid
+                    self._clear_session()
+                    return False
+        
         return False
     
     def _clear_session(self):
-        """Clear session file."""
-        if SESSION_FILE.exists():
+        """Clear session from file or session_state."""
+        if RUNNING_IN_STREAMLIT:
+            if 'supabase_session' in st.session_state:
+                del st.session_state['supabase_session']
+        elif SESSION_FILE and SESSION_FILE.exists():
             try:
                 SESSION_FILE.unlink()
             except:
