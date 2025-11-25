@@ -6,130 +6,165 @@ import os
 import json
 import time
 import random
-import streamlit as st
+import sys
+import traceback
 from pathlib import Path
 from supabase import create_client, Client
 from dotenv import load_dotenv
 from typing import Optional, Dict, Any
 
 # Detect if running in Streamlit
+print("🔍 Detecting runtime environment...")
 try:
+    import streamlit as st
     RUNNING_IN_STREAMLIT = True
-    SUPABASE_URL = st.secrets["SUPABASE_URL_CALMEA"]
-    st.write("Loaded SUPABASE_URL_CALMEA from Streamlit secrets")
-    SUPABASE_KEY = st.secrets["SUPABASE_KEY_CALMEA"]
-    st.write("Loaded SUPABASE_KEY_CALMEA from Streamlit secrets")
-except (ImportError, FileNotFoundError, KeyError):
+    print("✅ Running in Streamlit")
+    
+    try:
+        SUPABASE_URL = st.secrets["SUPABASE_URL_CALMEA"]
+        print("✅ Loaded SUPABASE_URL_CALMEA from Streamlit secrets")
+        SUPABASE_KEY = st.secrets["SUPABASE_KEY_CALMEA"]
+        print("✅ Loaded SUPABASE_KEY_CALMEA from Streamlit secrets")
+    except KeyError as e:
+        print(f"❌ Missing secret: {e}")
+        print(f"Available secrets: {list(st.secrets.keys())}")
+        raise
+        
+except (ImportError, FileNotFoundError, KeyError) as e:
+    print(f"ℹ️  Not running in Streamlit or secrets missing: {e}")
     RUNNING_IN_STREAMLIT = False
     load_dotenv()
     SUPABASE_URL = os.getenv("SUPABASE_URL_CALMEA")
     SUPABASE_KEY = os.getenv("SUPABASE_KEY_CALMEA")
+    print(f"Loaded from .env - URL: {SUPABASE_URL[:30]}... KEY: {SUPABASE_KEY[:20] if SUPABASE_KEY else 'None'}...")
 
 if not SUPABASE_URL or not SUPABASE_KEY:
-    raise ValueError("SUPABASE_URL_CALMEA and SUPABASE_KEY_CALMEA must be set")
+    error_msg = "SUPABASE_URL_CALMEA and SUPABASE_KEY_CALMEA must be set"
+    print(f"❌ {error_msg}")
+    raise ValueError(error_msg)
+
+print(f"✅ Supabase credentials configured")
 
 # Session file path (only for CLI)
 SESSION_FILE = Path.home() / ".somnomat_session.json" if not RUNNING_IN_STREAMLIT else None
+print(f"Session file: {SESSION_FILE}")
 
 
 class SupabaseAuthClient:
-    """Wrapper for Supabase client with authentication.
-    Key Features:
-    1. User signup/signin/signout
-    2. Session persistence (saves to ~/.somnomat_session.json)
-    3. JWT token management (auto-refresh)
-    4. Device access control
-    """
+    """Wrapper for Supabase client with authentication."""
     
     def __init__(self):
         """Initialize the auth client with a fresh Supabase instance."""
-        self.client: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-        self.user = None
-        self.session = None
-        
-        # Try to load existing session
-        self._load_session()
+        print("\n🔧 Initializing SupabaseAuthClient...")
+        try:
+            self.client: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+            print("✅ Supabase client created")
+            self.user = None
+            self.session = None
+            
+            # Try to load existing session
+            print("🔍 Attempting to load existing session...")
+            session_loaded = self._load_session()
+            if session_loaded:
+                print(f"✅ Session loaded for user: {self.user.email if self.user else 'Unknown'}")
+            else:
+                print("ℹ️  No existing session found")
+        except Exception as e:
+            print(f"❌ Error in SupabaseAuthClient.__init__: {e}")
+            print(traceback.format_exc())
+            raise
     
     # ==================== Session Persistence ====================
     
     def _save_session(self):
         """Save session to file (CLI) or session_state (Streamlit)."""
+        print(f"\n💾 Saving session... (Streamlit: {RUNNING_IN_STREAMLIT})")
         if not self.session:
+            print("⚠️  No session to save")
             return
         
-        session_data = {
-            "access_token": self.session.access_token,
-            "refresh_token": self.session.refresh_token,
-            "user": {
-                "id": self.user.id,
-                "email": self.user.email,
-                "user_metadata": self.user.user_metadata if hasattr(self.user, 'user_metadata') else {}
+        try:
+            session_data = {
+                "access_token": self.session.access_token,
+                "refresh_token": self.session.refresh_token,
+                "user": {
+                    "id": self.user.id,
+                    "email": self.user.email,
+                    "user_metadata": self.user.user_metadata if hasattr(self.user, 'user_metadata') else {}
+                }
             }
-        }
-        
-        if RUNNING_IN_STREAMLIT:
-            # Save to Streamlit session state
-            st.session_state['supabase_session'] = session_data
-        else:
-            # Save to file for CLI
-            try:
+            
+            if RUNNING_IN_STREAMLIT:
+                st.session_state['supabase_session'] = session_data
+                print("✅ Session saved to Streamlit session_state")
+            else:
                 with open(SESSION_FILE, 'w') as f:
                     json.dump(session_data, f)
                 os.chmod(SESSION_FILE, 0o600)
-            except Exception as e:
-                print(f"⚠️  Warning: Could not save session: {e}")
+                print(f"✅ Session saved to {SESSION_FILE}")
+        except Exception as e:
+            print(f"❌ Error saving session: {e}")
+            print(traceback.format_exc())
     
     def _load_session(self):
         """Load session from file (CLI) or session_state (Streamlit)."""
+        print(f"\n📂 Loading session... (Streamlit: {RUNNING_IN_STREAMLIT})")
         session_data = None
         
-        if RUNNING_IN_STREAMLIT:
-            # Load from Streamlit session state
-            session_data = st.session_state.get('supabase_session')
-        elif SESSION_FILE and SESSION_FILE.exists():
-            # Load from file for CLI
-            try:
+        try:
+            if RUNNING_IN_STREAMLIT:
+                session_data = st.session_state.get('supabase_session')
+                if session_data:
+                    print("✅ Session data found in session_state")
+                else:
+                    print("ℹ️  No session data in session_state")
+            elif SESSION_FILE and SESSION_FILE.exists():
                 with open(SESSION_FILE, 'r') as f:
                     session_data = json.load(f)
-            except Exception as e:
-                print(f"❌ Error loading session: {e}")
-                self._clear_session()
-                return False
-        
-        if session_data:
-            access_token = session_data.get("access_token")
+                print(f"✅ Session data loaded from {SESSION_FILE}")
             
-            if access_token:
-                try:
-                    # Set the auth token
+            if session_data:
+                access_token = session_data.get("access_token")
+                
+                if access_token:
+                    print("🔑 Setting session with access token...")
                     self.client.auth.set_session(
                         access_token=access_token,
                         refresh_token=session_data.get("refresh_token")
                     )
                     
-                    # Verify session is valid
+                    print("🔍 Verifying session...")
                     user_response = self.client.auth.get_user()
                     if user_response and user_response.user:
                         self.user = user_response.user
                         self.session = self.client.auth.get_session()
+                        print(f"✅ Session valid for user: {self.user.email}")
                         return True
-                except Exception as e:
-                    # Session expired or invalid
-                    self._clear_session()
-                    return False
+                    else:
+                        print("❌ Session invalid")
+                        self._clear_session()
+                        return False
+        except Exception as e:
+            print(f"❌ Error loading session: {e}")
+            print(traceback.format_exc())
+            self._clear_session()
+            return False
         
         return False
     
     def _clear_session(self):
         """Clear session from file or session_state."""
-        if RUNNING_IN_STREAMLIT:
-            if 'supabase_session' in st.session_state:
-                del st.session_state['supabase_session']
-        elif SESSION_FILE and SESSION_FILE.exists():
-            try:
+        print("\n🗑️  Clearing session...")
+        try:
+            if RUNNING_IN_STREAMLIT:
+                if 'supabase_session' in st.session_state:
+                    del st.session_state['supabase_session']
+                    print("✅ Session cleared from session_state")
+            elif SESSION_FILE and SESSION_FILE.exists():
                 SESSION_FILE.unlink()
-            except:
-                pass
+                print(f"✅ Session file deleted: {SESSION_FILE}")
+        except Exception as e:
+            print(f"⚠️  Error clearing session: {e}")
     
     # ==================== Authentication Methods ====================
     
@@ -405,6 +440,7 @@ class SupabaseAuthClient:
             device_id = device_result.data[0]['id']
             
             # Verify the device was linked (by trigger)
+            import time
             time.sleep(0.5)  # Give trigger time to execute
             
             if not self.has_device_access(device_id):
@@ -455,6 +491,7 @@ class SupabaseAuthClient:
     
     def get_user_devices(self) -> list:
         """Get all devices for the current user."""
+        print(f"\n📱 Fetching devices for user: {self.user.email if self.user else 'None'}")
         if not self.user:
             print("❌ No authenticated user!")
             return []
@@ -465,133 +502,15 @@ class SupabaseAuthClient:
                 .eq("user_id", self.user.id) \
                 .execute()
             
-            return response.data
+            devices = response.data
+            print(f"✅ Found {len(devices)} device(s)")
+            return devices
         
         except Exception as e:
             print(f"❌ Get user devices error: {e}")
+            print(traceback.format_exc())
             return []
-    
-    def unlink_device(self, device_id: int) -> bool:
-        """Unlink a device from the current user.
-        
-        Args:
-            device_id: ID of the device to unlink
-        
-        Returns:
-            True if successful
-        """
-        if not self.user:
-            print("❌ No authenticated user!")
-            return False
-        
-        try:
-            self.client.table("user_devices") \
-                .delete() \
-                .eq("user_id", self.user.id) \
-                .eq("device_id", device_id) \
-                .execute()
-            
-            print(f"✅ Device {device_id} unlinked from user")
-            return True
-        
-        except Exception as e:
-            print(f"❌ Unlink device error: {e}")
-            return False
-    
-    def has_device_access(self, device_id: int, required_role: Optional[str] = None) -> bool:
-        """Check if current user has access to a device.
-        
-        Args:
-            device_id: ID of the device to check
-            required_role: Optional specific role required (e.g., 'owner')
-        
-        Returns:
-            True if user has access
-        """
-        if not self.user:
-            return False
-        
-        try:
-            query = self.client.table("user_devices") \
-                .select("role") \
-                .eq("user_id", self.user.id) \
-                .eq("device_id", device_id)
-            
-            if required_role:
-                query = query.eq("role", required_role)
-            
-            response = query.execute()
-            return bool(response.data)
-        
-        except Exception as e:
-            print(f"❌ Check device access error: {e}")
-            return False
-    
-    def delete_device(self, device_id: int) -> dict:
-        """
-        Delete a device and all its associated data.
-        Only the owner can delete a device.
-        
-        Args:
-            device_id: ID of the device to delete
-        
-        Returns:
-            dict with success status
-        """
-        user = self.get_current_user()
-        if not user:
-            return {"error": "User not authenticated"}
-        
-        try:
-            # Check if user is the owner of the device
-            user_device = self.client.table('user_devices') \
-                .select('role') \
-                .eq('user_id', user.id) \
-                .eq('device_id', device_id) \
-                .execute()
-            
-            if not user_device.data:
-                return {"error": "Device not found or you don't have access"}
-            
-            if user_device.data[0]['role'] != 'owner':
-                return {"error": "Only device owners can delete devices"}
-            
-            # Delete the device (cascade will handle user_devices, occupancy data, etc.)
-            result = self.client.table('devices') \
-                .delete() \
-                .eq('id', device_id) \
-                .execute()
-            
-            if result.data:
-                return {"success": True, "device_id": device_id}
-            else:
-                return {"error": "Failed to delete device"}
-        
-        except Exception as e:
-            return {"error": f"Deletion failed: {str(e)}"}
-    
-    # ==================== Helper Methods ====================
-    
-    def is_authenticated(self) -> bool:
-        """Check if user is authenticated."""
-        return self.get_current_user() is not None
-    
-    def require_auth(self):
-        """Decorator/helper to require authentication."""
-        if not self.is_authenticated():
-            raise PermissionError("Authentication required!")
-        return True
-    
-    def get_auth_header(self) -> Optional[Dict[str, str]]:
-        """Get authorization header for API requests.
-        
-        Returns:
-            Dict with Authorization header or None
-        """
-        if self.session and hasattr(self.session, 'access_token'):
-            return {"Authorization": f"Bearer {self.session.access_token}"}
-        return None
 
+# ...existing code...
 
-# Global authenticated client instance (optional)
-auth_client = SupabaseAuthClient()
+print("\n✅ supabase_auth_client.py module loaded successfully")
