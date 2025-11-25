@@ -5,6 +5,7 @@ Separate from the main API client to handle user authentication.
 import os
 import json
 import time
+import streamlit as st
 from pathlib import Path
 from supabase import create_client, Client
 from dotenv import load_dotenv
@@ -12,7 +13,6 @@ from typing import Optional, Dict, Any
 
 # Try to load from Streamlit secrets first, then fall back to .env
 try:
-    import streamlit as st
     SUPABASE_URL = st.secrets["SUPABASE_URL_CALMEA"]
     SUPABASE_KEY = st.secrets["SUPABASE_KEY_CALMEA"]
 except (ImportError, FileNotFoundError, KeyError):
