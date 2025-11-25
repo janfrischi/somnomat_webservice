@@ -571,7 +571,7 @@ def get_device_with_all_data(device_id: int) -> Optional[Dict[str, Any]]:
         return None
     
     device['firmware'] = get_firmware_by_device(device_id)
-    device['settings'] = get_user_settings_by_device(device_id)
+    device['settings'] = get_user_settings_by_id(device_id)
     device['dashboard'] = get_dashboard(device_id)
     device['current_occupancy'] = get_current_occupancy_status(device_id)
     
