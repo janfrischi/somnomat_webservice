@@ -8,25 +8,36 @@ import re
 import time
 import sys
 import traceback
+import logging
 from datetime import datetime, timedelta, timezone
 
-# Add logging at the very top
-print("=" * 60)
-st.write("🚀 STARTING STREAMLIT DASHBOARD")
-st.text("🚀 STARTING STREAMLIT DASHBOARD")
-print("=" * 60)
-print(f"Python version: {sys.version}")
-print(f"Current working directory: {os.getcwd()}")
-print(f"Script location: {__file__}")
-print("=" * 60)
+# ==================== LOGGING SETUP ====================
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+logger = logging.getLogger(__name__)
 
+# Startup logging
+logger.info("=" * 60)
+logger.info("🚀 STARTING STREAMLIT DASHBOARD")
+logger.info("=" * 60)
+logger.info(f"Python version: {sys.version}")
+logger.info(f"Current working directory: {os.getcwd()}")
+logger.info(f"Script location: {__file__}")
+logger.info("=" * 60)
+
+# ==================== IMPORTS ====================
 try:
     from supabase_auth_client import SupabaseAuthClient
-    print("✅ Successfully imported SupabaseAuthClient")
-
+    logger.info("✅ Successfully imported SupabaseAuthClient")
 except Exception as e:
-    print(f"❌ Error importing SupabaseAuthClient: {e}")
-    print(traceback.format_exc())
+    logger.error(f"❌ Error importing SupabaseAuthClient: {e}")
+    logger.error(traceback.format_exc())
     st.error(f"Failed to import SupabaseAuthClient: {e}")
     st.stop()
 
@@ -38,87 +49,85 @@ try:
         get_user_settings,
         create_or_update_user_settings
     )
-    print("✅ Successfully imported supabase_api_client_somnomat functions")
+    logger.info("✅ Successfully imported supabase_api_client_somnomat functions")
 except Exception as e:
-    print(f"❌ Error importing supabase_api_client_somnomat: {e}")
-    print(traceback.format_exc())
+    logger.error(f"❌ Error importing supabase_api_client_somnomat: {e}")
+    logger.error(traceback.format_exc())
     st.error(f"Failed to import API client: {e}")
     st.stop()
 
 try:
     from calculate_dashboard import process_occupancy_into_sessions
-    print("✅ Successfully imported process_occupancy_into_sessions")
+    logger.info("✅ Successfully imported process_occupancy_into_sessions")
 except Exception as e:
-    print(f"❌ Error importing calculate_dashboard: {e}")
-    print(traceback.format_exc())
+    logger.error(f"❌ Error importing calculate_dashboard: {e}")
+    logger.error(traceback.format_exc())
     st.error(f"Failed to import calculate_dashboard: {e}")
     st.stop()
 
 try:
     from PIL import Image
-    print("✅ Successfully imported PIL")
+    logger.info("✅ Successfully imported PIL")
 except Exception as e:
-    print(f"❌ Error importing PIL: {e}")
-    print(traceback.format_exc())
+    logger.warning(f"⚠️  PIL not available: {e}")
     st.warning(f"PIL not available: {e}")
 
-print("\n📝 Setting page config...")
+# ==================== PAGE CONFIG ====================
+logger.info("📝 Setting page config...")
 st.set_page_config(page_title="Sleep Dashboard", layout="wide", page_icon="🛏️")
-print("✅ Page config set")
+logger.info("✅ Page config set")
 
-# Initialize auth client
-print("\n🔐 Initializing authentication client...")
+# ==================== AUTH CLIENT INITIALIZATION ====================
+logger.info("🔐 Initializing authentication client...")
 try:
     if 'auth_client' not in st.session_state:
-        print("   Creating new auth client instance...")
+        logger.info("Creating new auth client instance...")
         st.session_state.auth_client = SupabaseAuthClient()
-        print("   ✅ Auth client created")
+        logger.info("✅ Auth client created")
     else:
-        print("   ✅ Using existing auth client from session state")
+        logger.info("✅ Using existing auth client from session state")
     
-    # Instantiate auth client
     auth = st.session_state.auth_client
-    print("✅ Auth client ready")
+    logger.info("✅ Auth client ready")
 except Exception as e:
-    print(f"❌ Error initializing auth client: {e}")
-    print(traceback.format_exc())
+    logger.error(f"❌ Error initializing auth client: {e}")
+    logger.error(traceback.format_exc())
     st.error(f"Authentication initialization failed: {e}")
     st.code(traceback.format_exc())
     st.stop()
 
-# Check authentication
-print("\n👤 Checking user authentication...")
+# ==================== CHECK AUTHENTICATION ====================
+logger.info("👤 Checking user authentication...")
 try:
     user = auth.get_current_user()
     if user:
-        print(f"✅ User authenticated: {user.email}")
+        logger.info(f"✅ User authenticated: {user.email}")
     else:
-        print("ℹ️  No user currently authenticated")
+        logger.info("ℹ️  No user currently authenticated")
 except Exception as e:
-    print(f"❌ Error checking authentication: {e}")
-    print(traceback.format_exc())
+    logger.error(f"❌ Error checking authentication: {e}")
+    logger.error(traceback.format_exc())
     st.error(f"Error checking authentication: {e}")
     user = None
 
-# If not logged in, show login/signup page
+# ==================== LOGIN/SIGNUP PAGE ====================
 if not user:
-    print("\n🔓 Showing login/signup page...")
-    # ==================== LOGIN/SIGNUP PAGE ====================
-    st.write("Loaded dashboard")
+    logger.info("🔓 Showing login/signup page...")
+    
     # Load logo for login page
     try:
         logo_path = os.path.join(os.path.dirname(__file__), "calmea.png")
-        print(f"Looking for logo at: {logo_path}")
+        logger.debug(f"Looking for logo at: {logo_path}")
         if os.path.exists(logo_path):
             logo = Image.open(logo_path)
             col1, col2, col3 = st.columns([1, 2, 1])
             with col2:
                 st.image(logo, width='content')
-            print("✅ Logo loaded")
+            logger.info("✅ Logo loaded")
         else:
-            print(f"⚠️  Logo not found at {logo_path}")
+            logger.warning(f"⚠️  Logo not found at {logo_path}")
     except Exception as e:
-        print(f"⚠️  Could not load logo: {e}")
+        logger.warning(f"⚠️  Could not load logo: {e}")
         st.sidebar.caption("⚠️ Logo not found")
     
     st.title("🔐 Somnomat Login")
@@ -135,24 +144,24 @@ if not user:
             
             #If form is submitted
             if submit:
-                print(f"\n📧 Sign in attempt for: {email}")
+                logger.info(f"📧 Sign in attempt for: {email}")
                 if not email or not password:
                     st.error("❌ Please fill in all fields")
-                    print("❌ Missing credentials")
+                    logger.warning("❌ Missing credentials")
                 else:
                     try:
                         result = auth.sign_in(email, password)
                         if "user" in result:
-                            print(f"✅ Sign in successful for {email}")
+                            logger.info(f"✅ Sign in successful for {email}")
                             st.success("✅ Signed in successfully!")
                             st.balloons()
                             st.rerun()
                         else:
-                            print(f"❌ Sign in failed: {result.get('error')}")
+                            logger.warning(f"❌ Sign in failed: {result.get('error')}")
                             st.error(f"❌ {result.get('error', 'Sign in failed')}")
                     except Exception as e:
-                        print(f"❌ Sign in exception: {e}")
-                        print(traceback.format_exc())
+                        logger.error(f"❌ Sign in exception: {e}")
+                        logger.error(traceback.format_exc())
                         st.error(f"Sign in error: {e}")
     
     with tab2:
@@ -165,30 +174,30 @@ if not user:
             submit = st.form_submit_button("Sign Up", width='stretch')
             
             if submit:
-                print(f"\n📝 Sign up attempt for: {email}")
+                logger.info(f"📝 Sign up attempt for: {email}")
                 if not email or not password:
                     st.error("❌ Please fill in all required fields")
-                    print("❌ Missing required fields")
+                    logger.warning("❌ Missing required fields")
                 elif len(password) < 6:
                     st.error("❌ Password must be at least 6 characters")
-                    print("❌ Password too short")
+                    logger.warning("❌ Password too short")
                 elif password != password_confirm:
                     st.error("❌ Passwords do not match")
-                    print("❌ Password mismatch")
+                    logger.warning("❌ Password mismatch")
                 else:
                     try:
                         metadata = {"name": name} if name else {}
                         result = auth.sign_up(email, password, metadata)
                         if "user" in result:
-                            print(f"✅ Sign up successful for {email}")
+                            logger.info(f"✅ Sign up successful for {email}")
                             st.success("✅ Account created! Please check your email to verify.")
                             st.info("📧 A verification email has been sent. Click the link to activate your account.")
                         else:
-                            print(f"❌ Sign up failed: {result.get('error')}")
+                            logger.warning(f"❌ Sign up failed: {result.get('error')}")
                             st.error(f"❌ {result.get('error', 'Sign up failed')}")
                     except Exception as e:
-                        print(f"❌ Sign up exception: {e}")
-                        print(traceback.format_exc())
+                        logger.error(f"❌ Sign up exception: {e}")
+                        logger.error(traceback.format_exc())
                         st.error(f"Sign up error: {e}")
     
     with tab3:
@@ -198,26 +207,27 @@ if not user:
             submit = st.form_submit_button("Send Reset Email", width='stretch')
             
             if submit:
-                print(f"\n🔄 Password reset request for: {email}")
+                logger.info(f"🔄 Password reset request for: {email}")
                 if not email:
                     st.error("❌ Please enter your email")
                 else:
                     try:
                         if auth.reset_password_email(email):
-                            print(f"✅ Reset email sent to {email}")
+                            logger.info(f"✅ Reset email sent to {email}")
                             st.success("✅ Password reset email sent! Check your inbox.")
                         else:
-                            print(f"❌ Failed to send reset email to {email}")
+                            logger.error(f"❌ Failed to send reset email to {email}")
                             st.error("❌ Failed to send reset email")
                     except Exception as e:
-                        print(f"❌ Password reset exception: {e}")
-                        print(traceback.format_exc())
+                        logger.error(f"❌ Password reset exception: {e}")
+                        logger.error(traceback.format_exc())
                         st.error(f"Password reset error: {e}")
 
+# ==================== AUTHENTICATED USER DASHBOARD ====================
 else:
-    print(f"\n✅ User authenticated: {user.email} (ID: {user.id})")
-    # ==================== SIDEBAR ====================
+    logger.info(f"✅ User authenticated: {user.email} (ID: {user.id})")
     
+    # ==================== SIDEBAR ====================
     # Load logo for sidebar
     try:
         logo_path = os.path.join(os.path.dirname(__file__), "calmea.png")
@@ -225,9 +235,9 @@ else:
             logo = Image.open(logo_path)
             st.sidebar.image(logo, width='stretch')
             st.sidebar.divider()
-            print("✅ Sidebar logo loaded")
+            logger.info("✅ Sidebar logo loaded")
     except Exception as e:
-        print(f"⚠️  Could not load sidebar logo: {e}")
+        logger.warning(f"⚠️  Could not load sidebar logo: {e}")
         st.sidebar.title("🛏️ Somnomat")
         st.sidebar.divider()
     
@@ -238,28 +248,28 @@ else:
     st.sidebar.caption(f"📧 {user.email}")
     
     if st.sidebar.button("🚪 Sign Out", width='stretch'):
-        print(f"🚪 User {user.email} signing out...")
+        logger.info(f"🚪 User {user.email} signing out...")
         auth.sign_out()
         st.rerun()
     
     st.sidebar.divider()
     
     # Get user's devices
-    print("\n📱 Fetching user devices...")
+    logger.info("📱 Fetching user devices...")
     try:
         user_devices = auth.get_user_devices()
-        print(f"✅ Found {len(user_devices)} device(s)")
+        logger.info(f"✅ Found {len(user_devices)} device(s)")
         for d in user_devices:
-            print(f"   - {d['devices']['name']} (ID: {d['device_id']}, Role: {d['role']})")
+            logger.debug(f"   - {d['devices']['name']} (ID: {d['device_id']}, Role: {d['role']})")
     except Exception as e:
-        print(f"❌ Error fetching user devices: {e}")
-        print(traceback.format_exc())
+        logger.error(f"❌ Error fetching user devices: {e}")
+        logger.error(traceback.format_exc())
         st.error(f"Error loading devices: {e}")
         st.code(traceback.format_exc())
         user_devices = []
     
     if not user_devices:
-        print("\nℹ️  No devices found - showing registration page")
+        logger.info("ℹ️  No devices found - showing registration page")
         # ==================== NO DEVICES ====================
         st.title("📱 Welcome to Somnomat!")
         st.markdown("### No devices linked to your account yet")
