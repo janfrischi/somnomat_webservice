@@ -13,8 +13,10 @@ from dotenv import load_dotenv
 from typing import Optional, Dict, Any
 
 # Detect if running in Streamlit
-print("🔍 Detecting runtime environment...")
+print("Detecting runtime environment...")
 RUNNING_IN_STREAMLIT = False
+
+# Deployed version -> load from Streamlit secrets
 try:
     import streamlit as st
     RUNNING_IN_STREAMLIT = True
@@ -29,7 +31,8 @@ try:
         print(f"❌ Missing secret: {e}")
         print(f"Available secrets: {list(st.secrets.keys())}")
         raise
-        
+
+# Local development version -> load from .env
 except (ImportError, FileNotFoundError, KeyError) as e:
     print(f"ℹ️  Not running in Streamlit or secrets missing: {e}")
     RUNNING_IN_STREAMLIT = False

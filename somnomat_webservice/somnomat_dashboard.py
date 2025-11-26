@@ -9,7 +9,7 @@ import time
 from datetime import datetime, timedelta, timezone
 
 # ==================== PAGE CONFIG ====================
-st.set_page_config(page_title="Sleep Dashboard", layout="wide", page_icon="🛏️")
+st.set_page_config(page_title="Somnomat Sleep Dashboard", layout="wide", page_icon="🛏️")
 
 # ==================== IMPORTS ====================
 try:
@@ -39,13 +39,15 @@ except Exception as e:
 try:
     from PIL import Image
 except Exception as e:
-    pass  # PIL is optional for logo display
+    pass
 
 # ==================== AUTH CLIENT INITIALIZATION ====================
 try:
+    # If auth_client doesn't exist we create new SupabaseAuthClient instance
     if 'auth_client' not in st.session_state:
         st.session_state.auth_client = SupabaseAuthClient()
     
+    # Retrieve auth client from session state -> Stores user data, JWT tokens, etc.
     auth = st.session_state.auth_client
 except Exception as e:
     st.error(f"Authentication initialization failed: {e}")
@@ -59,6 +61,7 @@ except Exception as e:
     user = None
 
 # ==================== LOGIN/SIGNUP PAGE ====================
+# If no user is logged in, show login/signup forms
 if not user:
     # Load logo for login page
     try:
@@ -77,7 +80,7 @@ if not user:
     tab1, tab2, tab3 = st.tabs(["🔑 Sign In", "🚀 Sign Up", "🔄 Reset Password"])
     
     with tab1:
-        st.markdown("### Sign In to Your Account")
+        st.markdown("#### Sign In to Your Account")
         with st.form("signin_form"):
             email = st.text_input("Email", placeholder="user@example.com")
             password = st.text_input("Password", type="password")
@@ -99,7 +102,7 @@ if not user:
                         st.error(f"Sign in error: {e}")
     
     with tab2:
-        st.markdown("### Create a New Account")
+        st.markdown("#### Create a New Account")
         with st.form("signup_form"):
             email = st.text_input("Email", placeholder="user@example.com", key="signup_email")
             password = st.text_input("Password (min 6 characters)", type="password", key="signup_password")
@@ -127,7 +130,7 @@ if not user:
                         st.error(f"Sign up error: {e}")
     
     with tab3:
-        st.markdown("### Reset Your Password")
+        st.markdown("#### Reset Your Password")
         with st.form("reset_form"):
             email = st.text_input("Email", placeholder="user@example.com", key="reset_email")
             submit = st.form_submit_button("Send Reset Email", width='stretch')
