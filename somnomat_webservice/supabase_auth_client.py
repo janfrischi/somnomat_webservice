@@ -6,7 +6,6 @@ import os
 import json
 import time
 import random
-import sys
 import traceback
 from pathlib import Path
 from supabase import create_client, Client

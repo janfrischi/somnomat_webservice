@@ -286,6 +286,9 @@ else:
         
         if st.button("🔄 Refresh Page", width='stretch'):
             st.rerun()
+        
+        # ==================== STOP HERE - NO DEVICES ====================
+        st.stop()  # Add this line to prevent further execution
     
     else:
         # ==================== DEVICE SELECTION & MANAGEMENT ====================
