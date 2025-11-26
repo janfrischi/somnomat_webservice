@@ -1012,7 +1012,7 @@ else:
                         'bar': {'color': "darkblue"},
                         'steps': [
                             {'range': [0, 6], 'color': "#ffcccc"},
-                            {'range': [6, 7], 'color": "#fff4cc"},
+                            {'range': [6, 7], 'color': "#fff4cc"},
                             {'range': [7, 9], 'color': "#ccffcc"},
                             {'range': [9, 12], 'color': "#cce5ff"}
                         ],
