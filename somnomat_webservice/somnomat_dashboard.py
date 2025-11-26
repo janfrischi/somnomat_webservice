@@ -1012,7 +1012,7 @@ else:
                         'bar': {'color': "darkblue"},
                         'steps': [
                             {'range': [0, 6], 'color': "#ffcccc"},
-                            {'range': [6, 7], 'color': "#fff4cc"},
+                            {'range': [6, 7], 'color": "#fff4cc"},
                             {'range': [7, 9], 'color': "#ccffcc"},
                             {'range': [9, 12], 'color': "#cce5ff"}
                         ],
@@ -1220,32 +1220,13 @@ else:
                 fig2.update_layout(showlegend=False)
                 st.plotly_chart(fig2, width='stretch')
                 
-                # # Sessions table
-                # st.markdown("#### Sleep Sessions Details")
-                # display_df = sessions_df[['session_start', 'session_end', 'duration_hours']].copy()
-                # display_df['session_start'] = display_df['session_start'].dt.strftime('%Y-%m-%d %H:%M')
-                # display_df['session_end'] = display_df['session_end'].dt.strftime('%Y-%m-%d %H:%M')
-                # display_df['duration_hours'] = display_df['duration_hours'].round(2)
-                # st.dataframe(display_df, width='stretch', hide_index=True)
+                # Bedtime and wake time calculations
+                sessions_df['bedtime_hour'] = sessions_df['session_start'].dt.hour + sessions_df['session_start'].dt.minute / 60
+                sessions_df['wakeup_hour'] = sessions_df['session_end'].dt.hour + sessions_df['session_end'].dt.minute / 60
                 
-                # # Bedtime and wake time calculations
-                # sessions_df['bedtime_hour'] = sessions_df['session_start'].dt.hour + sessions_df['session_start'].dt.minute / 60
-                # sessions_df['wakeup_hour'] = sessions_df['session_end'].dt.hour + sessions_df['session_end'].dt.minute / 60
-                
-                # # Add num_interruptions if not present
-                # if 'num_interruptions' not in sessions_df.columns:
-                #     sessions_df['num_interruptions'] = 0
-                
-                # # Bedtime distribution
-                # fig3 = px.histogram(
-                #     sessions_df,
-                #     x='bedtime_hour',
-                #     nbins=24,
-                #     title='Bedtime Distribution',
-                #     labels={'bedtime_hour': 'Hour of Day'},
-                #     height=300
-                # )
-                # st.plotly_chart(fig3, width='stretch')
+                # Add num_interruptions if not present
+                if 'num_interruptions' not in sessions_df.columns:
+                    sessions_df['num_interruptions'] = 0
                 
                 # ==================== TREND ANALYSIS ====================
                 st.divider()
@@ -1309,12 +1290,14 @@ else:
                         'wakeup_hour': 'mean'
                     }
                     
-                    if 'num_interruptions' in sessions_df_copy.columns:
+                    # Only add num_interruptions if column exists AND has data
+                    if 'num_interruptions' in sessions_df_copy.columns and sessions_df_copy['num_interruptions'].notna().any():
                         agg_dict['num_interruptions'] = 'sum'
                     
                     trend_data = sessions_df_copy.groupby('week').agg(agg_dict).reset_index()
                     
-                    if 'num_interruptions' in sessions_df_copy.columns:
+                    # Build column names based on what was actually aggregated
+                    if 'num_interruptions' in agg_dict:
                         trend_data.columns = ['week', 'avg_duration', 'std_duration', 'count', 'avg_bedtime', 'avg_wakeup', 'interruptions']
                     else:
                         trend_data.columns = ['week', 'avg_duration', 'std_duration', 'count', 'avg_bedtime', 'avg_wakeup']
@@ -1327,24 +1310,26 @@ else:
                 else:  # Monthly
                     # Group by month
                     sessions_df_copy['month'] = sessions_df_copy['session_start'].dt.tz_localize(None).dt.to_period('M')
-                    
+    
                     agg_dict = {
                         'duration_hours': ['mean', 'std', 'count'],
                         'bedtime_hour': 'mean',
                         'wakeup_hour': 'mean'
                     }
-                    
-                    if 'num_interruptions' in sessions_df_copy.columns:
+    
+                    # Only add num_interruptions if column exists AND has data
+                    if 'num_interruptions' in sessions_df_copy.columns and sessions_df_copy['num_interruptions'].notna().any():
                         agg_dict['num_interruptions'] = 'sum'
-                    
+    
                     trend_data = sessions_df_copy.groupby('month').agg(agg_dict).reset_index()
-                    
-                    if 'num_interruptions' in sessions_df_copy.columns:
+    
+                    # Build column names based on what was actually aggregated
+                    if 'num_interruptions' in agg_dict:
                         trend_data.columns = ['month', 'avg_duration', 'std_duration', 'count', 'avg_bedtime', 'avg_wakeup', 'interruptions']
                     else:
                         trend_data.columns = ['month', 'avg_duration', 'std_duration', 'count', 'avg_bedtime', 'avg_wakeup']
                         trend_data['interruptions'] = 0
-                    
+    
                     trend_data['date'] = trend_data['month'].astype(str)
                     x_label = 'Month'
                     date_format = None
