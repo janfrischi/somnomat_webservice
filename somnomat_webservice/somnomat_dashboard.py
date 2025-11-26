@@ -245,8 +245,9 @@ else:
                                     st.info(f"**Device ID:** `{result['device_id']}`")
                                     st.info(f"**MAC Address:** `{result['mac']}`")
                                     st.balloons()
-                                    if st.button("🔄 Refresh Dashboard"):
-                                        st.rerun()
+                                    # Auto-refresh after 2 seconds
+                                    time.sleep(2)
+                                    st.rerun()
                                 else:
                                     st.error(f"❌ {result.get('error', 'Registration failed')}")
                         else:
@@ -260,8 +261,9 @@ else:
                                 st.info(f"**Device ID:** `{result['device_id']}`")
                                 st.info(f"**MAC Address:** `{result['mac']}`")
                                 st.balloons()
-                                if st.button("🔄 Refresh Dashboard"):
-                                    st.rerun()
+                                # Auto-refresh after 2 seconds
+                                time.sleep(2)
+                                st.rerun()
                             else:
                                 st.error(f"❌ {result.get('error', 'Registration failed')}")
         
