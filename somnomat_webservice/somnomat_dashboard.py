@@ -75,7 +75,6 @@ if not user:
         pass
     
     st.title("🔐 Somnomat Login")
-    st.markdown("---")
     
     tab1, tab2, tab3 = st.tabs(["🔑 Sign In", "🚀 Sign Up", "🔄 Reset Password"])
     
