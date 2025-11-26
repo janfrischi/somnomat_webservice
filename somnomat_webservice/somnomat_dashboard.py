@@ -1220,32 +1220,32 @@ else:
                 fig2.update_layout(showlegend=False)
                 st.plotly_chart(fig2, width='stretch')
                 
-                # Sessions table
-                st.markdown("#### Sleep Sessions Details")
-                display_df = sessions_df[['session_start', 'session_end', 'duration_hours']].copy()
-                display_df['session_start'] = display_df['session_start'].dt.strftime('%Y-%m-%d %H:%M')
-                display_df['session_end'] = display_df['session_end'].dt.strftime('%Y-%m-%d %H:%M')
-                display_df['duration_hours'] = display_df['duration_hours'].round(2)
-                st.dataframe(display_df, width='stretch', hide_index=True)
+                # # Sessions table
+                # st.markdown("#### Sleep Sessions Details")
+                # display_df = sessions_df[['session_start', 'session_end', 'duration_hours']].copy()
+                # display_df['session_start'] = display_df['session_start'].dt.strftime('%Y-%m-%d %H:%M')
+                # display_df['session_end'] = display_df['session_end'].dt.strftime('%Y-%m-%d %H:%M')
+                # display_df['duration_hours'] = display_df['duration_hours'].round(2)
+                # st.dataframe(display_df, width='stretch', hide_index=True)
                 
-                # Bedtime and wake time calculations
-                sessions_df['bedtime_hour'] = sessions_df['session_start'].dt.hour + sessions_df['session_start'].dt.minute / 60
-                sessions_df['wakeup_hour'] = sessions_df['session_end'].dt.hour + sessions_df['session_end'].dt.minute / 60
+                # # Bedtime and wake time calculations
+                # sessions_df['bedtime_hour'] = sessions_df['session_start'].dt.hour + sessions_df['session_start'].dt.minute / 60
+                # sessions_df['wakeup_hour'] = sessions_df['session_end'].dt.hour + sessions_df['session_end'].dt.minute / 60
                 
-                # Add num_interruptions if not present
-                if 'num_interruptions' not in sessions_df.columns:
-                    sessions_df['num_interruptions'] = 0
+                # # Add num_interruptions if not present
+                # if 'num_interruptions' not in sessions_df.columns:
+                #     sessions_df['num_interruptions'] = 0
                 
-                # Bedtime distribution
-                fig3 = px.histogram(
-                    sessions_df,
-                    x='bedtime_hour',
-                    nbins=24,
-                    title='Bedtime Distribution',
-                    labels={'bedtime_hour': 'Hour of Day'},
-                    height=300
-                )
-                st.plotly_chart(fig3, width='stretch')
+                # # Bedtime distribution
+                # fig3 = px.histogram(
+                #     sessions_df,
+                #     x='bedtime_hour',
+                #     nbins=24,
+                #     title='Bedtime Distribution',
+                #     labels={'bedtime_hour': 'Hour of Day'},
+                #     height=300
+                # )
+                # st.plotly_chart(fig3, width='stretch')
                 
                 # ==================== TREND ANALYSIS ====================
                 st.divider()
