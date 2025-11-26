@@ -6,38 +6,15 @@ import plotly.graph_objects as go
 import os
 import re
 import time
-import sys
-import traceback
-import logging
 from datetime import datetime, timedelta, timezone
 
-# ==================== LOGGING SETUP ====================
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(sys.stdout)
-    ]
-)
-logger = logging.getLogger(__name__)
-
-# Startup logging
-logger.info("=" * 60)
-logger.info("🚀 STARTING STREAMLIT DASHBOARD")
-logger.info("=" * 60)
-logger.info(f"Python version: {sys.version}")
-logger.info(f"Current working directory: {os.getcwd()}")
-logger.info(f"Script location: {__file__}")
-logger.info("=" * 60)
+# ==================== PAGE CONFIG ====================
+st.set_page_config(page_title="Sleep Dashboard", layout="wide", page_icon="🛏️")
 
 # ==================== IMPORTS ====================
 try:
     from supabase_auth_client import SupabaseAuthClient
-    logger.info("✅ Successfully imported SupabaseAuthClient")
 except Exception as e:
-    logger.error(f"❌ Error importing SupabaseAuthClient: {e}")
-    logger.error(traceback.format_exc())
     st.error(f"Failed to import SupabaseAuthClient: {e}")
     st.stop()
 
@@ -49,86 +26,50 @@ try:
         get_user_settings,
         create_or_update_user_settings
     )
-    logger.info("✅ Successfully imported supabase_api_client_somnomat functions")
 except Exception as e:
-    logger.error(f"❌ Error importing supabase_api_client_somnomat: {e}")
-    logger.error(traceback.format_exc())
     st.error(f"Failed to import API client: {e}")
     st.stop()
 
 try:
     from calculate_dashboard import process_occupancy_into_sessions
-    logger.info("✅ Successfully imported process_occupancy_into_sessions")
 except Exception as e:
-    logger.error(f"❌ Error importing calculate_dashboard: {e}")
-    logger.error(traceback.format_exc())
     st.error(f"Failed to import calculate_dashboard: {e}")
     st.stop()
 
 try:
     from PIL import Image
-    logger.info("✅ Successfully imported PIL")
 except Exception as e:
-    logger.warning(f"⚠️  PIL not available: {e}")
-    st.warning(f"PIL not available: {e}")
-
-# ==================== PAGE CONFIG ====================
-logger.info("📝 Setting page config...")
-st.set_page_config(page_title="Sleep Dashboard", layout="wide", page_icon="🛏️")
-logger.info("✅ Page config set")
+    pass  # PIL is optional for logo display
 
 # ==================== AUTH CLIENT INITIALIZATION ====================
-logger.info("🔐 Initializing authentication client...")
 try:
     if 'auth_client' not in st.session_state:
-        logger.info("Creating new auth client instance...")
         st.session_state.auth_client = SupabaseAuthClient()
-        logger.info("✅ Auth client created")
-    else:
-        logger.info("✅ Using existing auth client from session state")
     
     auth = st.session_state.auth_client
-    logger.info("✅ Auth client ready")
 except Exception as e:
-    logger.error(f"❌ Error initializing auth client: {e}")
-    logger.error(traceback.format_exc())
     st.error(f"Authentication initialization failed: {e}")
-    st.code(traceback.format_exc())
     st.stop()
 
 # ==================== CHECK AUTHENTICATION ====================
-logger.info("👤 Checking user authentication...")
 try:
     user = auth.get_current_user()
-    if user:
-        logger.info(f"✅ User authenticated: {user.email}")
-    else:
-        logger.info("ℹ️  No user currently authenticated")
 except Exception as e:
-    logger.error(f"❌ Error checking authentication: {e}")
-    logger.error(traceback.format_exc())
     st.error(f"Error checking authentication: {e}")
     user = None
 
 # ==================== LOGIN/SIGNUP PAGE ====================
 if not user:
-    logger.info("🔓 Showing login/signup page...")
-    
     # Load logo for login page
     try:
         logo_path = os.path.join(os.path.dirname(__file__), "calmea.png")
-        logger.debug(f"Looking for logo at: {logo_path}")
         if os.path.exists(logo_path):
             logo = Image.open(logo_path)
             col1, col2, col3 = st.columns([1, 2, 1])
             with col2:
                 st.image(logo, width='content')
-            logger.info("✅ Logo loaded")
-        else:
-            logger.warning(f"⚠️  Logo not found at {logo_path}")
-    except Exception as e:
-        logger.warning(f"⚠️  Could not load logo: {e}")
-        st.sidebar.caption("⚠️ Logo not found")
+    except:
+        pass
     
     st.title("🔐 Somnomat Login")
     st.markdown("---")
@@ -142,26 +83,19 @@ if not user:
             password = st.text_input("Password", type="password")
             submit = st.form_submit_button("Sign In", width='stretch')
             
-            #If form is submitted
             if submit:
-                logger.info(f"📧 Sign in attempt for: {email}")
                 if not email or not password:
                     st.error("❌ Please fill in all fields")
-                    logger.warning("❌ Missing credentials")
                 else:
                     try:
                         result = auth.sign_in(email, password)
                         if "user" in result:
-                            logger.info(f"✅ Sign in successful for {email}")
                             st.success("✅ Signed in successfully!")
                             st.balloons()
                             st.rerun()
                         else:
-                            logger.warning(f"❌ Sign in failed: {result.get('error')}")
                             st.error(f"❌ {result.get('error', 'Sign in failed')}")
                     except Exception as e:
-                        logger.error(f"❌ Sign in exception: {e}")
-                        logger.error(traceback.format_exc())
                         st.error(f"Sign in error: {e}")
     
     with tab2:
@@ -174,30 +108,22 @@ if not user:
             submit = st.form_submit_button("Sign Up", width='stretch')
             
             if submit:
-                logger.info(f"📝 Sign up attempt for: {email}")
                 if not email or not password:
                     st.error("❌ Please fill in all required fields")
-                    logger.warning("❌ Missing required fields")
                 elif len(password) < 6:
                     st.error("❌ Password must be at least 6 characters")
-                    logger.warning("❌ Password too short")
                 elif password != password_confirm:
                     st.error("❌ Passwords do not match")
-                    logger.warning("❌ Password mismatch")
                 else:
                     try:
                         metadata = {"name": name} if name else {}
                         result = auth.sign_up(email, password, metadata)
                         if "user" in result:
-                            logger.info(f"✅ Sign up successful for {email}")
                             st.success("✅ Account created! Please check your email to verify.")
                             st.info("📧 A verification email has been sent. Click the link to activate your account.")
                         else:
-                            logger.warning(f"❌ Sign up failed: {result.get('error')}")
                             st.error(f"❌ {result.get('error', 'Sign up failed')}")
                     except Exception as e:
-                        logger.error(f"❌ Sign up exception: {e}")
-                        logger.error(traceback.format_exc())
                         st.error(f"Sign up error: {e}")
     
     with tab3:
@@ -207,26 +133,19 @@ if not user:
             submit = st.form_submit_button("Send Reset Email", width='stretch')
             
             if submit:
-                logger.info(f"🔄 Password reset request for: {email}")
                 if not email:
                     st.error("❌ Please enter your email")
                 else:
                     try:
                         if auth.reset_password_email(email):
-                            logger.info(f"✅ Reset email sent to {email}")
                             st.success("✅ Password reset email sent! Check your inbox.")
                         else:
-                            logger.error(f"❌ Failed to send reset email to {email}")
                             st.error("❌ Failed to send reset email")
                     except Exception as e:
-                        logger.error(f"❌ Password reset exception: {e}")
-                        logger.error(traceback.format_exc())
                         st.error(f"Password reset error: {e}")
 
 # ==================== AUTHENTICATED USER DASHBOARD ====================
 else:
-    logger.info(f"✅ User authenticated: {user.email} (ID: {user.id})")
-    
     # ==================== SIDEBAR ====================
     # Load logo for sidebar
     try:
@@ -235,9 +154,7 @@ else:
             logo = Image.open(logo_path)
             st.sidebar.image(logo, width='stretch')
             st.sidebar.divider()
-            logger.info("✅ Sidebar logo loaded")
-    except Exception as e:
-        logger.warning(f"⚠️  Could not load sidebar logo: {e}")
+    except:
         st.sidebar.title("🛏️ Somnomat")
         st.sidebar.divider()
     
@@ -248,28 +165,19 @@ else:
     st.sidebar.caption(f"📧 {user.email}")
     
     if st.sidebar.button("🚪 Sign Out", width='stretch'):
-        logger.info(f"🚪 User {user.email} signing out...")
         auth.sign_out()
         st.rerun()
     
     st.sidebar.divider()
     
     # Get user's devices
-    logger.info("📱 Fetching user devices...")
     try:
         user_devices = auth.get_user_devices()
-        logger.info(f"✅ Found {len(user_devices)} device(s)")
-        for d in user_devices:
-            logger.debug(f"   - {d['devices']['name']} (ID: {d['device_id']}, Role: {d['role']})")
     except Exception as e:
-        logger.error(f"❌ Error fetching user devices: {e}")
-        logger.error(traceback.format_exc())
         st.error(f"Error loading devices: {e}")
-        st.code(traceback.format_exc())
         user_devices = []
     
     if not user_devices:
-        logger.info("ℹ️  No devices found - showing registration page")
         # ==================== NO DEVICES ====================
         st.title("📱 Welcome to Somnomat!")
         st.markdown("### No devices linked to your account yet")
@@ -322,9 +230,7 @@ else:
                     if not device_name:
                         st.error("❌ Device name is required")
                     else:
-                        # Validate MAC if provided
                         if mac_address:
-                            import re
                             if not re.match(r'^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$', mac_address):
                                 st.error("❌ Invalid MAC address format. Use XX:XX:XX:XX:XX:XX")
                             else:
@@ -383,41 +289,32 @@ else:
         # ==================== DEVICE SELECTION & MANAGEMENT ====================
         st.sidebar.title("Device Management")
         
-        # Create device options (without "Add New Device")
         device_options = {
             f"{d['devices']['name']} (ID: {d['device_id']})": d['device_id'] 
             for d in user_devices
         }
         
-        # Device selector
         selected = st.sidebar.selectbox("Select Device", list(device_options.keys()))
-        
-        # Get selected device
         device_id = device_options[selected]
         
-        # Get device role
         current_device = next(d for d in user_devices if d['device_id'] == device_id)
         user_role = current_device['role']
         
         st.sidebar.caption(f"Role: {user_role.upper()}")
         
-        # Add "Register New Device" button
         if st.sidebar.button("➕ Register New Device", width='stretch'):
             st.session_state.show_register_form = True
         
-        # Add "Adjust Device Settings" button
         if st.sidebar.button("⚙️ Adjust Device Settings", use_container_width=True, key="settings_button_sidebar"):
             st.session_state.show_settings = True
         
-        # Add "Delete Device" button (only for owners)
         if user_role == 'owner':
             if st.sidebar.button("🗑️ Delete Device", width='stretch', type="secondary"):
                 st.session_state.show_delete_confirmation = True
         
         st.sidebar.divider()
         
-        # ==================== LOAD DEVICE DATA FIRST ====================
-        # Load device data early so it's available for all operations
+        # ==================== LOAD DEVICE DATA ====================
         device = get_device_by_id(device_id)
         if not device:
             st.error(f"Device {device_id} not found")
@@ -558,7 +455,6 @@ else:
                         st.error("❌ Name required")
                     else:
                         if mac_address:
-                            import re
                             if not re.match(r'^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$', mac_address):
                                 st.error("❌ Invalid MAC format")
                             else:
