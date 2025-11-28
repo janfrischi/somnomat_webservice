@@ -166,19 +166,21 @@ else:
     st.sidebar.success(f"👤 {user_name}")
     st.sidebar.caption(f"📧 {user.email}")
     
+    # Sign out button -> If pressed user is signed out
     if st.sidebar.button("🚪 Sign Out", width='stretch'):
         auth.sign_out()
         st.rerun()
     
     st.sidebar.divider()
     
-    # Get user's devices
+    # Get authorized users devices
     try:
         user_devices = auth.get_user_devices()
     except Exception as e:
         st.error(f"Error loading devices: {e}")
         user_devices = []
     
+    # Initial device registration
     if not user_devices:
         # ==================== NO DEVICES ====================
         st.title("📱 Welcome to Somnomat!")
@@ -307,8 +309,6 @@ else:
         current_device = next(d for d in user_devices if d['device_id'] == device_id)
         user_role = current_device['role']
         
-        st.sidebar.caption(f"Role: {user_role.upper()}")
-        
         if st.sidebar.button("➕ Register New Device", width='stretch'):
             st.session_state.show_register_form = True
         
@@ -382,6 +382,7 @@ else:
                 
                 if cancel_btn:
                     st.session_state.show_delete_confirmation = False
+                    # Go back to main page
                     st.rerun()
                 
                 if delete_btn:
@@ -412,12 +413,13 @@ else:
         if st.session_state.get('show_register_form', False):
             # Show title in main area
             st.title("📱 Register New Device")
-            st.markdown("### Add a new device to your account")
+            st.markdown("#### Add a new device to your account")
             
             with st.form("sidebar_register_device_form"):
+
                 device_name = st.text_input(
                     "Device Name",
-                    placeholder="My Bedroom Monitor",
+                    placeholder="My Bedroom",
                     key="sidebar_device_name"
                 )
                 
@@ -447,6 +449,7 @@ else:
                         key="sidebar_mac_address"
                     )
                 
+                # Define columns for buttons
                 col1, col2 = st.columns(2)
                 with col1:
                     submit = st.form_submit_button("✅ Register", width='stretch')
@@ -501,7 +504,7 @@ else:
         # Settings Modal/Expander in main area
         if st.session_state.get('show_settings', False):
             st.title("⚙️ Device Settings")
-            st.markdown(f"### Configure {device['name']}")
+            st.markdown(f"#### Configure {device['name']}")
             
             # Get current user ID
             current_user_id = user.id
@@ -609,7 +612,6 @@ else:
                         
                         if result:
                             st.success("✅ Settings saved successfully!")
-                            st.balloons()
                             
                             # Show what was saved
                             st.info(f"""
@@ -620,12 +622,13 @@ else:
                             """)
                             
                             # Close settings and refresh
-                            time.sleep(1)
+                            time.sleep(0.5)
                             st.session_state.show_settings = False
                             st.rerun()
                         else:
                             st.error("❌ Failed to save settings. Please try again.")
                 
+                # Reset to defaults
                 if reset:
                     # Reset to defaults (5, 5, 3)
                     result = create_or_update_user_settings(
@@ -652,7 +655,7 @@ else:
             st.stop()  # Stop rendering the rest of the dashboard when settings are open
 
 
-        # Comparison Mode
+        # -----Comparison Mode------
         st.sidebar.subheader("🔀 Compare")
         comparison_mode = st.sidebar.checkbox("Enable Comparison")
         
@@ -769,7 +772,7 @@ else:
     
         # ==================== LOAD DASHBOARD METRICS ====================
         # Load dashboard metrics -> Pull data from Supabase
-        dashboard = get_dashboard(device_id)
+        dashboard = get_dashboard(device_id) # Values were previously computed with calculate_dashboard.py
         compare_dashboard = get_dashboard(compare_device_id) if compare_device else None
         
         # ==================== METRICS DISPLAY ====================
