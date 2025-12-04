@@ -441,49 +441,54 @@ python auth_cli.py link <device_id>
         # Check if user wants to register a new device
         if st.session_state.get('show_register_form', False):
             # Show title in main area
-            st.title("📱 Register New Device")
-            st.markdown("#### Add a new device to your account")
+            st.title("📱 Device Management")
+            st.markdown("#### Add a device to your account")
             
-            with st.form("sidebar_register_device_form"):
-
-                device_name = st.text_input(
-                    "Device Name",
-                    placeholder="My Bedroom",
-                    key="sidebar_device_name"
-                )
+            # Add tabs for registration vs linking
+            tab1, tab2 = st.tabs(["🆕 Register New Device", "🔗 Link Existing Device"])
+            
+            with tab1:
+                st.markdown("**Create a brand new device**")
                 
-                boardtype = st.selectbox(
-                    "Board Type",
-                    ["ESP32", "ESP8266", "Arduino"],
-                    key="sidebar_boardtype"
-                )
-                
-                hardware_version = st.text_input(
-                    "Hardware Version",
-                    value="v1.0",
-                    key="sidebar_hardware_version"
-                )
-                
-                mac_option = st.radio(
-                    "MAC Address",
-                    ["Auto-generate", "Enter manually"],
-                    key="sidebar_mac_option"
-                )
-                
-                mac_address = None
-                if mac_option == "Enter manually":
-                    mac_address = st.text_input(
-                        "MAC Address",
-                        placeholder="AA:BB:CC:DD:EE:FF",
-                        key="sidebar_mac_address"
+                with st.form("sidebar_register_device_form"):
+                    device_name = st.text_input(
+                        "Device Name",
+                        placeholder="My Bedroom",
+                        key="sidebar_device_name"
                     )
-                
-                # Define columns for buttons
-                col1, col2 = st.columns(2)
-                with col1:
-                    submit = st.form_submit_button("✅ Register", width='stretch')
-                with col2:
-                    cancel = st.form_submit_button("❌ Cancel", width='stretch')
+                    
+                    boardtype = st.selectbox(
+                        "Board Type",
+                        ["ESP32", "ESP8266", "Arduino"],
+                        key="sidebar_boardtype"
+                    )
+                    
+                    hardware_version = st.text_input(
+                        "Hardware Version",
+                        value="v1.0",
+                        key="sidebar_hardware_version"
+                    )
+                    
+                    mac_option = st.radio(
+                        "MAC Address",
+                        ["Auto-generate", "Enter manually"],
+                        key="sidebar_mac_option"
+                    )
+                    
+                    mac_address = None
+                    if mac_option == "Enter manually":
+                        mac_address = st.text_input(
+                            "MAC Address",
+                            placeholder="AA:BB:CC:DD:EE:FF",
+                            key="sidebar_mac_address"
+                        )
+                    
+                    # Define columns for buttons
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        submit = st.form_submit_button("✅ Register", width='stretch')
+                    with col2:
+                        cancel = st.form_submit_button("❌ Cancel", width='stretch')
                 
                 if cancel:
                     st.session_state.show_register_form = False
@@ -525,6 +530,67 @@ python auth_cli.py link <device_id>
                                 st.rerun()
                             else:
                                 st.error(f"❌ {result.get('error', 'Failed')}")
+            
+            with tab2:
+                st.markdown("**Link device ID 987 or any existing device**")
+                st.info("Connect a device that's already in the database (like device 987)")
+                
+                with st.form("sidebar_link_device_form"):
+                    device_id_to_link = st.number_input(
+                        "Device ID",
+                        min_value=1,
+                        step=1,
+                        value=987,  # Pre-fill with 987 as default
+                        help="Enter the ID of the device you want to link (e.g., 987)"
+                    )
+                    
+                    st.markdown("**Your Role**")
+                    link_role = st.radio(
+                        "Select your access level",
+                        ["owner", "viewer", "admin"],
+                        index=0,  # Default to owner
+                        help="Owner: Full control | Viewer: Read-only | Admin: Can modify settings",
+                        horizontal=True,
+                        key="sidebar_link_role"
+                    )
+                    
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        submit_link = st.form_submit_button("🔗 Link Device", width='stretch', type="primary")
+                    with col2:
+                        cancel_link = st.form_submit_button("❌ Cancel", width='stretch')
+                    
+                    if cancel_link:
+                        st.session_state.show_register_form = False
+                        st.rerun()
+                    
+                    if submit_link:
+                        with st.spinner(f"Linking device {device_id_to_link}..."):
+                            result = auth.link_device_to_user(int(device_id_to_link), role=link_role)
+                            
+                            if result:
+                                st.success(f"✅ Device {device_id_to_link} successfully linked!")
+                                st.info(f"**Role:** {link_role}")
+                                st.balloons()
+                                
+                                # Close the form and refresh
+                                st.session_state.show_register_form = False
+                                time.sleep(1.5)
+                                st.rerun()
+                            else:
+                                st.error(f"❌ Failed to link device {device_id_to_link}")
+                                st.warning("**Possible reasons:**")
+                                st.write("- Device doesn't exist in the database")
+                                st.write("- You don't have permission to link this device")
+                                st.write("- Device is already linked to your account")
+                
+                st.divider()
+                
+                st.markdown("**Alternative: Use CLI**")
+                st.code(f"""
+cd somnomat_webservice
+python auth_cli.py link 987
+                """, language="bash")
             
             st.sidebar.divider()
             
