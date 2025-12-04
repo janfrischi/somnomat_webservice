@@ -275,16 +275,45 @@ else:
             st.markdown("#### Link an Existing Device")
             st.info("Link a device that's already registered in the system")
             
-            st.markdown("""
-            **Use the CLI to link existing devices:**
+            # Replace the CLI-only instructions with an actual form
+            with st.form("link_device_form"):
+                device_id_to_link = st.number_input(
+                    "Device ID",
+                    min_value=1,
+                    step=1,
+                    help="Enter the ID of the device you want to link"
+                )
+                
+                st.markdown("**Role**")
+                link_role = st.radio(
+                    "Select your role for this device",
+                    ["owner", "viewer", "admin"],
+                    index=1,  # Default to 'viewer'
+                    help="Owner: Full control | Viewer: Read-only | Admin: Can modify settings",
+                    horizontal=True
+                )
+                
+                submit_link = st.form_submit_button("🔗 Link Device", width='stretch')
+                
+                if submit_link:
+                    with st.spinner(f"Linking device {device_id_to_link}..."):
+                        result = auth.link_device_to_user(int(device_id_to_link), role=link_role)
+                        
+                        if result:
+                            st.success(f"✅ Device {device_id_to_link} successfully linked to your account as {link_role}!")
+                            st.balloons()
+                            time.sleep(2)
+                            st.rerun()
+                        else:
+                            st.error(f"❌ Failed to link device {device_id_to_link}. Make sure the device exists and you have permission.")
             
-            ```bash
-            cd somnomat_webservice
-            python auth_cli.py link <device_id>
-            ```
+            st.divider()
             
-            Or ask a device owner to share access with you.
-            """)
+            st.markdown("**Alternative: Use CLI**")
+            st.code("""
+cd somnomat_webservice
+python auth_cli.py link <device_id>
+            """, language="bash")
         
         st.divider()
         
