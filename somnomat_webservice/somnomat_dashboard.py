@@ -338,7 +338,7 @@ python auth_cli.py link <device_id>
         current_device = next(d for d in user_devices if d['device_id'] == device_id)
         user_role = current_device['role']
         
-        if st.sidebar.button("➕ Register New Device", width='stretch'):
+        if st.sidebar.button("➕ Register/Link New Device", width='stretch'):
             st.session_state.show_register_form = True
         
         if st.sidebar.button("⚙️ Adjust Device Settings", use_container_width=True, key="settings_button_sidebar"):
@@ -532,8 +532,7 @@ python auth_cli.py link <device_id>
                                 st.error(f"❌ {result.get('error', 'Failed')}")
             
             with tab2:
-                st.markdown("**Link device ID 987 or any existing device**")
-                st.info("Connect a device that's already in the database (like device 987)")
+                st.markdown("**Connect a device that's already in the database**")
                 
                 with st.form("sidebar_link_device_form"):
                     device_id_to_link = st.number_input(
@@ -585,13 +584,6 @@ python auth_cli.py link <device_id>
                                 st.write("- Device is already linked to your account")
                 
                 st.divider()
-                
-                st.markdown("**Alternative: Use CLI**")
-                st.code(f"""
-cd somnomat_webservice
-python auth_cli.py link 987
-                """, language="bash")
-            
             st.sidebar.divider()
             
             st.stop()  # Stop execution here so dashboard doesn't try to load
@@ -1077,7 +1069,7 @@ python auth_cli.py link 987
         # Device 1 data
         with col1:
             st.markdown(f"**{device['name']} - Last {days_back} Days**")
-            occupancy_data = get_all_raw_occupancy_by_device(device_id)  # Changed
+            occupancy_data = get_all_raw_occupancy_by_device(device_id)
             
             if occupancy_data:
                 df = pd.DataFrame(occupancy_data)
@@ -1088,27 +1080,37 @@ python auth_cli.py link 987
                 cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_back)
                 df = df[df['created_at'] >= cutoff_date]
                 
-                st.write(f"Total readings: {len(df)}")
-                st.caption(f"From {df['created_at'].min().strftime('%Y-%m-%d')} to {df['created_at'].max().strftime('%Y-%m-%d')}")
-                
-                fig = px.scatter(
-                    df,
-                    x='created_at',
-                    y='occupied',
-                    color='occupied',
-                    title=f'{device["name"]} - Occupancy Timeline',
-                    labels={'created_at': 'Time', 'occupied': 'Occupied'},
-                    height=300
-                )
-                fig.update_traces(marker=dict(size=2))
-                st.plotly_chart(fig, width='stretch')
+                # Check if filtered data is empty
+                if len(df) == 0:
+                    st.warning(f"⚠️ No data in the last {days_back} days")
+                    
+                    # Show available range
+                    all_df = pd.DataFrame(occupancy_data)
+                    all_df['created_at'] = pd.to_datetime(all_df['created_at'])
+                    if len(all_df) > 0:
+                        st.info(f"Data available from {all_df['created_at'].min().strftime('%Y-%m-%d')} to {all_df['created_at'].max().strftime('%Y-%m-%d')}")
+                else:
+                    st.write(f"Total readings: {len(df)}")
+                    st.caption(f"From {df['created_at'].min().strftime('%Y-%m-%d')} to {df['created_at'].max().strftime('%Y-%m-%d')}")
+                    
+                    fig = px.scatter(
+                        df,
+                        x='created_at',
+                        y='occupied',
+                        color='occupied',
+                        title=f'{device["name"]} - Occupancy Timeline',
+                        labels={'created_at': 'Time', 'occupied': 'Occupied'},
+                        height=300
+                    )
+                    fig.update_traces(marker=dict(size=2))
+                    st.plotly_chart(fig, width='stretch')
             else:
                 st.warning("No data available")
         
         # Device 2 data
         with col2:
             st.markdown(f"**{compare_device['name']} - Last {days_back} Days**")
-            compare_occupancy_data = get_all_raw_occupancy_by_device(compare_device_id)  # Changed
+            compare_occupancy_data = get_all_raw_occupancy_by_device(compare_device_id)
             
             if compare_occupancy_data:
                 df_compare = pd.DataFrame(compare_occupancy_data)
@@ -1119,20 +1121,30 @@ python auth_cli.py link 987
                 cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_back)
                 df_compare = df_compare[df_compare['created_at'] >= cutoff_date]
                 
-                st.write(f"Total readings: {len(df_compare)}")
-                st.caption(f"From {df_compare['created_at'].min().strftime('%Y-%m-%d')} to {df_compare['created_at'].max().strftime('%Y-%m-%d')}")
-                
-                fig = px.scatter(
-                    df_compare,
-                    x='created_at',
-                    y='occupied',
-                    color='occupied',
-                    title=f'{compare_device["name"]} - Occupancy Timeline',
-                    labels={'created_at': 'Time', 'occupied': 'Occupied'},
-                    height=300
-                )
-                fig.update_traces(marker=dict(size=2))
-                st.plotly_chart(fig, width='stretch')
+                # Check if filtered data is empty
+                if len(df_compare) == 0:
+                    st.warning(f"⚠️ No data in the last {days_back} days")
+                    
+                    # Show available range
+                    all_df = pd.DataFrame(compare_occupancy_data)
+                    all_df['created_at'] = pd.to_datetime(all_df['created_at'])
+                    if len(all_df) > 0:
+                        st.info(f"Data available from {all_df['created_at'].min().strftime('%Y-%m-%d')} to {all_df['created_at'].max().strftime('%Y-%m-%d')}")
+                else:
+                    st.write(f"Total readings: {len(df_compare)}")
+                    st.caption(f"From {df_compare['created_at'].min().strftime('%Y-%m-%d')} to {df_compare['created_at'].max().strftime('%Y-%m-%d')}")
+                    
+                    fig = px.scatter(
+                        df_compare,
+                        x='created_at',
+                        y='occupied',
+                        color='occupied',
+                        title=f'{compare_device["name"]} - Occupancy Timeline',
+                        labels={'created_at': 'Time', 'occupied': 'Occupied'},
+                        height=300
+                    )
+                    fig.update_traces(marker=dict(size=2))
+                    st.plotly_chart(fig, width='stretch')
             else:
                 st.warning("No data available")
         
@@ -1171,7 +1183,7 @@ python auth_cli.py link 987
     else:
         st.markdown(f"### 📊 Raw Occupancy Data (Last {days_back} Days)")
         
-        occupancy_data = get_all_raw_occupancy_by_device(device_id)  # Changed
+        occupancy_data = get_all_raw_occupancy_by_device(device_id)
         
         if occupancy_data:
             df = pd.DataFrame(occupancy_data)
@@ -1181,6 +1193,26 @@ python auth_cli.py link 987
             # Filter to selected date range
             cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_back)
             df = df[df['created_at'] >= cutoff_date]
+            
+            # Check if filtered data is empty
+            if len(df) == 0:
+                st.warning(f"⚠️ No occupancy data found in the last {days_back} days")
+                
+                # Show available data range if there's any data at all
+                if len(occupancy_data) > 0:
+                    all_df = pd.DataFrame(occupancy_data)
+                    all_df['created_at'] = pd.to_datetime(all_df['created_at'])
+                    oldest_date = all_df['created_at'].min().strftime('%Y-%m-%d')
+                    newest_date = all_df['created_at'].max().strftime('%Y-%m-%d')
+                    
+                    st.info(f"""
+                    **Available data range:**  
+                    From **{oldest_date}** to **{newest_date}**
+                    
+                    💡 Tip: Try selecting a longer date range or use the **Custom Range** option.
+                    """)
+                
+                st.stop()  # Stop rendering this section
             
             st.write(f"Total readings: {len(df)}")
             st.caption(f"Date range: {df['created_at'].min().strftime('%Y-%m-%d')} to {df['created_at'].max().strftime('%Y-%m-%d')}")
@@ -1554,7 +1586,7 @@ python auth_cli.py link 987
     
     # Occupancy data download
     if st.button("📄 Download Raw Occupancy Data", width='stretch'):
-        occupancy_data_download = get_all_raw_occupancy_by_device(device_id)  # Changed
+        occupancy_data_download = get_all_raw_occupancy_by_device(device_id)
         
         if occupancy_data_download:
             df_occupancy = pd.DataFrame(occupancy_data_download)
@@ -1564,15 +1596,29 @@ python auth_cli.py link 987
             cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_back)
             df_occupancy = df_occupancy[df_occupancy['created_at'] >= cutoff_date]
             
-            csv_occupancy = df_occupancy.to_csv(index=False)
-            
-            st.download_button(
-                label=f"📥 Download Occupancy Data ({len(df_occupancy)} readings)",
-                data=csv_occupancy,
-                file_name=f"occupancy_data_{device_id}_{datetime.now().strftime('%Y%m%d')}.csv",
-                mime="text/csv",
-                width='stretch'
-            )
+            # Check if there's any data after filtering
+            if len(df_occupancy) == 0:
+                st.warning(f"⚠️ No occupancy data available in the last {days_back} days")
+                
+                # Show total available data
+                all_df = pd.DataFrame(occupancy_data_download)
+                all_df['created_at'] = pd.to_datetime(all_df['created_at'])
+                st.info(f"""
+                **Total data available:** {len(all_df)} readings  
+                **Date range:** {all_df['created_at'].min().strftime('%Y-%m-%d')} to {all_df['created_at'].max().strftime('%Y-%m-%d')}
+                
+                💡 Tip: Adjust your date range to include this data.
+                """)
+            else:
+                csv_occupancy = df_occupancy.to_csv(index=False)
+                
+                st.download_button(
+                    label=f"📥 Download Occupancy Data ({len(df_occupancy)} readings)",
+                    data=csv_occupancy,
+                    file_name=f"occupancy_data_{device_id}_{datetime.now().strftime('%Y%m%d')}.csv",
+                    mime="text/csv",
+                    width='stretch'
+                )
         else:
             st.warning("No occupancy data available for download")
     
@@ -1636,7 +1682,7 @@ python auth_cli.py link 987
         )
         
         # Export all occupancy data
-        occupancy_export = get_all_raw_occupancy_by_device(device_id)  # Changed
+        occupancy_export = get_all_raw_occupancy_by_device(device_id)
         
         if occupancy_export:
             df_export = pd.DataFrame(occupancy_export)
