@@ -6,40 +6,14 @@ import plotly.graph_objects as go
 import os
 import re
 import time
+from supabase_auth_client import SupabaseAuthClient
+from supabase_api_client_somnomat import get_device_by_id, get_all_raw_occupancy_by_device, get_dashboard, get_user_settings, create_or_update_user_settings
+from calculate_dashboard import process_occupancy_into_sessions
 from datetime import datetime, timedelta, timezone
+from PIL import Image
 
 # ==================== PAGE CONFIG ====================
 st.set_page_config(page_title="Somnomat Sleep Dashboard", layout="wide", page_icon="🛏️")
-
-# ==================== IMPORTS ====================
-try:
-    from supabase_auth_client import SupabaseAuthClient
-except Exception as e:
-    st.error(f"Failed to import SupabaseAuthClient: {e}")
-    st.stop()
-
-try:
-    from supabase_api_client_somnomat import (
-        get_device_by_id,
-        get_all_raw_occupancy_by_device,
-        get_dashboard,
-        get_user_settings,
-        create_or_update_user_settings
-    )
-except Exception as e:
-    st.error(f"Failed to import API client: {e}")
-    st.stop()
-
-try:
-    from calculate_dashboard import process_occupancy_into_sessions
-except Exception as e:
-    st.error(f"Failed to import calculate_dashboard: {e}")
-    st.stop()
-
-try:
-    from PIL import Image
-except Exception as e:
-    pass
 
 # ==================== AUTH CLIENT INITIALIZATION ====================
 try:
@@ -78,6 +52,7 @@ if not user:
     
     tab1, tab2, tab3 = st.tabs(["🔑 Sign In", "🚀 Sign Up", "🔄 Reset Password"])
     
+    # ==================== SIGN IN FORM ====================
     with tab1:
         st.markdown("#### Sign In to Your Account")
         with st.form("signin_form"):
@@ -100,6 +75,7 @@ if not user:
                     except Exception as e:
                         st.error(f"Sign in error: {e}")
     
+    # ==================== SIGN UP FORM ====================
     with tab2:
         st.markdown("#### Create a New Account")
         with st.form("signup_form"):
@@ -128,6 +104,7 @@ if not user:
                     except Exception as e:
                         st.error(f"Sign up error: {e}")
     
+    # ==================== PASSWORD RESET FORM ====================
     with tab3:
         st.markdown("#### Reset Your Password")
         with st.form("reset_form"):
@@ -271,6 +248,7 @@ else:
                             else:
                                 st.error(f"❌ {result.get('error', 'Registration failed')}")
         
+        #==================== LINK EXISTING DEVICE ====================
         with tab2:
             st.markdown("#### Link an Existing Device")
             st.info("Link a device that's already registered in the system")
@@ -308,19 +286,12 @@ else:
                             st.error(f"❌ Failed to link device {device_id_to_link}. Make sure the device exists and you have permission.")
             
             st.divider()
-            
-            st.markdown("**Alternative: Use CLI**")
-            st.code("""
-cd somnomat_webservice
-python auth_cli.py link <device_id>
-            """, language="bash")
         
         st.divider()
         
         if st.button("🔄 Refresh Page", width='stretch'):
             st.rerun()
-        
-        # ==================== STOP HERE - NO DEVICES ====================
+
         st.stop()  # Add this line to prevent further execution
     
     else:
@@ -331,7 +302,8 @@ python auth_cli.py link <device_id>
             f"{d['devices']['name']} (ID: {d['device_id']})": d['device_id'] 
             for d in user_devices
         }
-        
+
+        # Read input for device selection
         selected = st.sidebar.selectbox("Select Device", list(device_options.keys()))
         device_id = device_options[selected]
         
@@ -444,7 +416,7 @@ python auth_cli.py link <device_id>
             st.title("📱 Device Management")
             st.markdown("#### Add a device to your account")
             
-            # Add tabs for registration vs linking
+            # Add tabs for registration and linking
             tab1, tab2 = st.tabs(["🆕 Register New Device", "🔗 Link Existing Device"])
             
             with tab1:
@@ -531,6 +503,7 @@ python auth_cli.py link <device_id>
                             else:
                                 st.error(f"❌ {result.get('error', 'Failed')}")
             
+            # ==================== LINK EXISTING DEVICE ====================
             with tab2:
                 st.markdown("**Connect a device that's already in the database**")
                 
@@ -570,7 +543,6 @@ python auth_cli.py link <device_id>
                             if result:
                                 st.success(f"✅ Device {device_id_to_link} successfully linked!")
                                 st.info(f"**Role:** {link_role}")
-                                st.balloons()
                                 
                                 # Close the form and refresh
                                 st.session_state.show_register_form = False
@@ -596,7 +568,7 @@ python auth_cli.py link <device_id>
             # Get current user ID
             current_user_id = user.id
             
-            # Load existing settings
+            # Load existing settings entry from database
             user_settings = get_user_settings(device_id, current_user_id)
             
             # Default values if no settings exist
@@ -859,7 +831,7 @@ python auth_cli.py link <device_id>
     
         # ==================== LOAD DASHBOARD METRICS ====================
         # Load dashboard metrics -> Pull data from Supabase
-        dashboard = get_dashboard(device_id) # Values were previously computed with calculate_dashboard.py
+        dashboard = get_dashboard(device_id)
         compare_dashboard = get_dashboard(compare_device_id) if compare_device else None
         
         # ==================== METRICS DISPLAY ====================
@@ -961,7 +933,7 @@ python auth_cli.py link <device_id>
             
             st.divider()
         
-        # Regular Mode Metrics
+        # =================== Sleep Metrics & Suggestions "Regular Mode" ====================
         elif dashboard:
             st.markdown("### 📊 Sleep Metrics")
             
@@ -1227,10 +1199,10 @@ python auth_cli.py link <device_id>
                 labels={'created_at': 'Time', 'occupied': 'Occupied'},
                 height=400
             )
-            fig.update_traces(marker=dict(size=3))
+            fig.update_traces(marker=dict(size=4))
             st.plotly_chart(fig, width='stretch')
             
-            # Process into sessions
+            # TODO: Have a look at session logic
             sessions = process_occupancy_into_sessions(occupancy_data)
             
             if sessions:
