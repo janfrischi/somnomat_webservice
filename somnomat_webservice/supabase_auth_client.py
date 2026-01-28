@@ -16,25 +16,32 @@ from typing import Optional, Dict, Any
 print("Detecting runtime environment...")
 RUNNING_IN_STREAMLIT = False
 
-# Deployed version -> load from Streamlit secrets
+# Check if actually running IN Streamlit (not just if streamlit is installed)
 try:
     import streamlit as st
-    RUNNING_IN_STREAMLIT = True
-    print("✅ Running in Streamlit")
+    # This will only work if streamlit run is actually executing
+    from streamlit.runtime.scriptrunner import get_script_run_ctx
     
-    try:
-        SUPABASE_URL = st.secrets["SUPABASE_URL_CALMEA"]
-        print("✅ Loaded SUPABASE_URL_CALMEA from Streamlit secrets")
-        SUPABASE_KEY = st.secrets["SUPABASE_KEY_CALMEA"]
-        print("✅ Loaded SUPABASE_KEY_CALMEA from Streamlit secrets")
-    except KeyError as e:
-        print(f"❌ Missing secret: {e}")
-        print(f"Available secrets: {list(st.secrets.keys())}")
-        raise
+    if get_script_run_ctx() is not None:
+        RUNNING_IN_STREAMLIT = True
+        print("✅ Running in Streamlit")
+        
+        try:
+            SUPABASE_URL = st.secrets["SUPABASE_URL_CALMEA"]
+            print("✅ Loaded SUPABASE_URL_CALMEA from Streamlit secrets")
+            SUPABASE_KEY = st.secrets["SUPABASE_KEY_CALMEA"]
+            print("✅ Loaded SUPABASE_KEY_CALMEA from Streamlit secrets")
+        except KeyError as e:
+            print(f"❌ Missing secret: {e}")
+            print(f"Available secrets: {list(st.secrets.keys())}")
+            raise
+    else:
+        print("ℹ️  Streamlit installed but not running - using CLI mode")
+        raise ImportError("Not in Streamlit context")
 
 # Local development version -> load from .env
-except (ImportError, FileNotFoundError, KeyError) as e:
-    print(f"ℹ️  Not running in Streamlit or secrets missing: {e}")
+except (ImportError, FileNotFoundError, KeyError, AttributeError) as e:
+    print(f"ℹ️  Using CLI mode: {type(e).__name__}")
     RUNNING_IN_STREAMLIT = False
     load_dotenv()
     SUPABASE_URL = os.getenv("SUPABASE_URL_CALMEA")
